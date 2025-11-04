@@ -94,7 +94,7 @@ class WhiteboardViewSet(viewsets.ModelViewSet):
 
 class StickyNoteViewSet(viewsets.ModelViewSet):
     serializer_class = StickyNoteSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsWhiteboardOwnerOrHasAccess]
     
     def get_queryset(self):
         user = self.request.user
@@ -110,7 +110,7 @@ class StickyNoteViewSet(viewsets.ModelViewSet):
 
 class DrawingViewSet(viewsets.ModelViewSet):
     serializer_class = DrawingSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsWhiteboardOwnerOrHasAccess]
     
     def get_queryset(self):
         user = self.request.user

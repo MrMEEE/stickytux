@@ -44,6 +44,9 @@ export default {
 
     async function handleLogin() {
       try {
+        // Get CSRF token first
+        await api.getCsrfToken()
+        // Then login
         await api.login(username.value, password.value)
         router.push('/whiteboards')
       } catch (error) {

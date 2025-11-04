@@ -70,11 +70,15 @@ export default {
   },
   
   // Auth
+  getCsrfToken() {
+    return api.get('/auth/csrf/')
+  },
+  
   login(username, password) {
-    return api.post('/api-auth/login/', { username, password })
+    return api.post('/auth/login/', { username, password })
   },
   
   logout() {
-    return api.post('/api-auth/logout/')
+    return api.post('/auth/logout/')
   },
 }
