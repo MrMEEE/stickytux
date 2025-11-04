@@ -44,6 +44,7 @@ def logout_view(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 @ensure_csrf_cookie
 def csrf_token_view(request):
     """Get CSRF token"""

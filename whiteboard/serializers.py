@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Whiteboard, WhiteboardAccess, StickyNote, Drawing
+from .models import Whiteboard, WhiteboardAccess, StickyNote, StickyNoteImage, Drawing
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -17,13 +17,21 @@ class WhiteboardAccessSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'role', 'created_at']
 
 
+class StickyNoteImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StickyNoteImage
+        fields = ['id', 'image', 'order', 'created_at']
+        read_only_fields = ['created_at']
+
+
 class StickyNoteSerializer(serializers.ModelSerializer):
     created_by = UserSerializer(read_only=True)
+    images = StickyNoteImageSerializer(many=True, read_only=True)
     
     class Meta:
         model = StickyNote
         fields = [
-            'id', 'whiteboard', 'content', 'image', 'link', 'color',
+            'id', 'whiteboard', 'content', 'image', 'images', 'link', 'color',
             'x', 'y', 'width', 'height', 'group_id', 'z_index',
             'created_by', 'created_at', 'updated_at'
         ]

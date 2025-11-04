@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Whiteboard, WhiteboardAccess, StickyNote, Drawing
+from .models import Whiteboard, WhiteboardAccess, StickyNote, StickyNoteImage, Drawing
 
 
 @admin.register(Whiteboard)
@@ -21,6 +21,13 @@ class StickyNoteAdmin(admin.ModelAdmin):
     list_display = ['whiteboard', 'color', 'x', 'y', 'created_by', 'created_at']
     list_filter = ['color', 'created_at']
     search_fields = ['content', 'whiteboard__name']
+
+
+@admin.register(StickyNoteImage)
+class StickyNoteImageAdmin(admin.ModelAdmin):
+    list_display = ['sticky_note', 'order', 'created_at']
+    list_filter = ['created_at']
+    search_fields = ['sticky_note__content']
 
 
 @admin.register(Drawing)

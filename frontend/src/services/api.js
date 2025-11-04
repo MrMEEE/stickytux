@@ -10,6 +10,41 @@ const api = axios.create({
   },
 })
 
+// Function to get CSRF token from cookies
+function getCsrfToken() {
+  const name = 'csrftoken'
+  let cookieValue = null
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';')
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim()
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1))
+        break
+      }
+    }
+  }
+  return cookieValue
+}
+
+// Add CSRF token to all requests
+api.interceptors.request.use(
+  (config) => {
+    const csrfToken = getCsrfToken()
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken
+    }
+    // If sending FormData, remove Content-Type to let browser set it with boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
 export default {
   // Whiteboards
   getWhiteboards() {
@@ -38,6 +73,16 @@ export default {
       role,
     })
   },
+
+  removeAccess(whiteboardId, username) {
+    return api.post(`/whiteboards/${whiteboardId}/remove_access/`, {
+      username,
+    })
+  },
+
+  searchUsers(query) {
+    return api.get(`/users/search/?q=${encodeURIComponent(query)}`)
+  },
   
   // Sticky Notes
   getStickyNotes() {
@@ -54,6 +99,17 @@ export default {
   
   deleteStickyNote(id) {
     return api.delete(`/sticky-notes/${id}/`)
+  },
+  
+  // Sticky Note Images
+  addImageToNote(noteId, imageFile) {
+    const formData = new FormData()
+    formData.append('image', imageFile)
+    return api.post(`/sticky-notes/${noteId}/add_image/`, formData)
+  },
+  
+  deleteNoteImage(imageId) {
+    return api.delete(`/sticky-note-images/${imageId}/`)
   },
   
   // Drawings

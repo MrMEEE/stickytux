@@ -1,12 +1,12 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Max
 from django.contrib.auth.models import User
-from .models import Whiteboard, WhiteboardAccess, StickyNote, Drawing
+from .models import Whiteboard, WhiteboardAccess, StickyNote, StickyNoteImage, Drawing
 from .serializers import (
     WhiteboardSerializer, WhiteboardAccessSerializer,
-    StickyNoteSerializer, DrawingSerializer
+    StickyNoteSerializer, StickyNoteImageSerializer, DrawingSerializer
 )
 
 
@@ -90,6 +90,48 @@ class WhiteboardViewSet(viewsets.ModelViewSet):
         
         serializer = WhiteboardAccessSerializer(access)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def remove_access(self, request, pk=None):
+        """Remove access for a user from this whiteboard"""
+        whiteboard = self.get_object()
+        
+        # Only owner or admin can remove access
+        if whiteboard.owner != request.user:
+            access = WhiteboardAccess.objects.filter(
+                whiteboard=whiteboard,
+                user=request.user,
+                role='admin'
+            ).first()
+            if not access:
+                return Response(
+                    {'error': 'Only owner or admin can remove access'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        username = request.data.get('username')
+        
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Cannot remove access from owner
+        if user == whiteboard.owner:
+            return Response(
+                {'error': 'Cannot remove access from owner'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        WhiteboardAccess.objects.filter(
+            whiteboard=whiteboard,
+            user=user
+        ).delete()
+        
+        return Response({'message': 'Access removed successfully'})
 
 
 class StickyNoteViewSet(viewsets.ModelViewSet):
@@ -106,6 +148,49 @@ class StickyNoteViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def add_image(self, request, pk=None):
+        """Add an image to this sticky note"""
+        note = self.get_object()
+        
+        image_file = request.FILES.get('image')
+        if not image_file:
+            return Response(
+                {'error': 'No image file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get the current max order
+        max_order = note.images.aggregate(Max('order'))['order__max'] or -1
+        
+        image = StickyNoteImage.objects.create(
+            sticky_note=note,
+            image=image_file,
+            order=max_order + 1
+        )
+        
+        serializer = StickyNoteImageSerializer(image)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class StickyNoteImageViewSet(viewsets.ModelViewSet):
+    serializer_class = StickyNoteImageSerializer
+    permission_classes = [permissions.IsAuthenticated, IsWhiteboardOwnerOrHasAccess]
+    
+    def get_queryset(self):
+        user = self.request.user
+        # Get images from notes on whiteboards user has access to
+        accessible_whiteboards = Whiteboard.objects.filter(
+            Q(owner=user) | Q(access_rights__user=user)
+        ).distinct()
+        return StickyNoteImage.objects.filter(sticky_note__whiteboard__in=accessible_whiteboards)
+    
+    def get_object(self):
+        obj = super().get_object()
+        # Check permissions on the whiteboard
+        self.check_object_permissions(self.request, obj.sticky_note.whiteboard)
+        return obj
 
 
 class DrawingViewSet(viewsets.ModelViewSet):

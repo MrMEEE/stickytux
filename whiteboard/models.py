@@ -69,6 +69,20 @@ class StickyNote(models.Model):
         return f"Note on {self.whiteboard.name} at ({self.x}, {self.y})"
 
 
+class StickyNoteImage(models.Model):
+    """Represents an image attached to a sticky note"""
+    sticky_note = models.ForeignKey(StickyNote, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='sticky_notes/')
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['order', 'created_at']
+    
+    def __str__(self):
+        return f"Image for {self.sticky_note}"
+
+
 class Drawing(models.Model):
     """Represents freehand drawing on a whiteboard"""
     whiteboard = models.ForeignKey(Whiteboard, on_delete=models.CASCADE, related_name='drawings')
@@ -76,7 +90,7 @@ class Drawing(models.Model):
     color = models.CharField(max_length=20, default='black')
     stroke_width = models.FloatField(default=2)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='drawings')
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
         return f"Drawing on {self.whiteboard.name}"
