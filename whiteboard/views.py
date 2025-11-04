@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
+from django.contrib.auth.models import User
 from .models import Whiteboard, WhiteboardAccess, StickyNote, Drawing
 from .serializers import (
     WhiteboardSerializer, WhiteboardAccessSerializer,
@@ -69,7 +70,6 @@ class WhiteboardViewSet(viewsets.ModelViewSet):
         username = request.data.get('username')
         role = request.data.get('role', 'view')
         
-        from django.contrib.auth.models import User
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
