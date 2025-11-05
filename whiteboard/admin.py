@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Whiteboard, WhiteboardAccess, StickyNote, StickyNoteImage, Drawing
+from .models import Whiteboard, WhiteboardAccess, StickyNote, StickyNoteImage, Drawing, CustomColor
 
 
 @admin.register(Whiteboard)
@@ -35,4 +35,12 @@ class DrawingAdmin(admin.ModelAdmin):
     list_display = ['whiteboard', 'color', 'created_by', 'created_at']
     list_filter = ['color', 'created_at']
     search_fields = ['whiteboard__name']
+
+
+@admin.register(CustomColor)
+class CustomColorAdmin(admin.ModelAdmin):
+    list_display = ['user', 'name', 'nickname', 'hex_color', 'created_at']
+    list_filter = ['created_at', 'user']
+    search_fields = ['name', 'nickname', 'user__username']
+
 

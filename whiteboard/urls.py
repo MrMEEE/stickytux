@@ -9,6 +9,9 @@ router.register(r'whiteboards', views.WhiteboardViewSet, basename='whiteboard')
 router.register(r'sticky-notes', views.StickyNoteViewSet, basename='stickynote')
 router.register(r'sticky-note-images', views.StickyNoteImageViewSet, basename='stickynoteimage')
 router.register(r'drawings', views.DrawingViewSet, basename='drawing')
+router.register(r'custom-colors', views.CustomColorViewSet, basename='customcolor')
+router.register(r'users', views.UserViewSet, basename='user')
+router.register(r'view-settings', views.WhiteboardViewSettingsViewSet, basename='viewsettings')
 
 urlpatterns = [
     path('', include(router.urls)),

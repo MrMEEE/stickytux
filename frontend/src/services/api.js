@@ -125,6 +125,56 @@ export default {
     return api.delete(`/drawings/${id}/`)
   },
   
+  // Custom Colors
+  getCustomColors() {
+    return api.get('/custom-colors/')
+  },
+  
+  createCustomColor(data) {
+    return api.post('/custom-colors/', data)
+  },
+  
+  updateCustomColor(id, data) {
+    return api.patch(`/custom-colors/${id}/`, data)
+  },
+  
+  deleteCustomColor(id) {
+    return api.delete(`/custom-colors/${id}/`)
+  },
+  
+  // View Settings
+  getViewSettings(whiteboardId) {
+    return api.get('/view-settings/for_whiteboard/', {
+      params: { whiteboard_id: whiteboardId }
+    })
+  },
+  
+  saveViewSettings(whiteboardId, zoom, panX, panY) {
+    return api.post('/view-settings/for_whiteboard/', {
+      whiteboard: whiteboardId,
+      zoom: zoom,
+      pan_x: panX,
+      pan_y: panY
+    })
+  },
+  
+  // User Administration (admin only)
+  getUsers() {
+    return api.get('/users/')
+  },
+  
+  createUser(data) {
+    return api.post('/users/', data)
+  },
+  
+  updateUser(id, data) {
+    return api.patch(`/users/${id}/`, data)
+  },
+  
+  deleteUser(id) {
+    return api.delete(`/users/${id}/`)
+  },
+  
   // Auth
   getCsrfToken() {
     return api.get('/auth/csrf/')

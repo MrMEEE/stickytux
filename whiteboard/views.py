@@ -3,10 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Max
 from django.contrib.auth.models import User
-from .models import Whiteboard, WhiteboardAccess, StickyNote, StickyNoteImage, Drawing
+from .models import Whiteboard, WhiteboardAccess, StickyNote, StickyNoteImage, Drawing, CustomColor, WhiteboardViewSettings
 from .serializers import (
     WhiteboardSerializer, WhiteboardAccessSerializer,
-    StickyNoteSerializer, StickyNoteImageSerializer, DrawingSerializer
+    StickyNoteSerializer, StickyNoteImageSerializer, DrawingSerializer, CustomColorSerializer, WhiteboardViewSettingsSerializer
 )
 
 
@@ -31,6 +31,10 @@ class IsWhiteboardOwnerOrHasAccess(permissions.BasePermission):
         # For StickyNote and Drawing, check whiteboard access
         elif isinstance(obj, (StickyNote, Drawing)):
             return self.has_object_permission(request, view, obj.whiteboard)
+        
+        # For StickyNoteImage, check sticky note's whiteboard access
+        elif isinstance(obj, StickyNoteImage):
+            return self.has_object_permission(request, view, obj.sticky_note.whiteboard)
         
         return False
 
@@ -208,3 +212,109 @@ class DrawingViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+
+class CustomColorViewSet(viewsets.ModelViewSet):
+    serializer_class = CustomColorSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Users can only see their own custom colors
+        return CustomColor.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class IsAdminUser(permissions.BasePermission):
+    """Custom permission to only allow admin users"""
+    def has_permission(self, request, view):
+        return request.user and request.user.is_staff
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """Admin-only viewset for user management"""
+    queryset = User.objects.all().order_by('-date_joined')
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+    
+    def get_serializer_class(self):
+        # Use different serializer for create/update to handle passwords
+        if self.action in ['create', 'update', 'partial_update']:
+            from .serializers import UserCreateSerializer
+            return UserCreateSerializer
+        from .serializers import UserSerializer
+        return UserSerializer
+
+
+class WhiteboardViewSettingsViewSet(viewsets.ModelViewSet):
+    """ViewSet for user-specific whiteboard view settings"""
+    serializer_class = WhiteboardViewSettingsSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Users can only see their own view settings
+        return WhiteboardViewSettings.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @action(detail=False, methods=['get', 'post'])
+    def for_whiteboard(self, request):
+        """Get or update view settings for a specific whiteboard"""
+        whiteboard_id = request.query_params.get('whiteboard_id') or request.data.get('whiteboard')
+        
+        if not whiteboard_id:
+            return Response(
+                {'error': 'whiteboard_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify user has access to this whiteboard
+        try:
+            whiteboard = Whiteboard.objects.get(id=whiteboard_id)
+            if whiteboard.owner != request.user:
+                access = WhiteboardAccess.objects.filter(
+                    whiteboard=whiteboard,
+                    user=request.user
+                ).first()
+                if not access:
+                    return Response(
+                        {'error': 'You do not have access to this whiteboard'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+        except Whiteboard.DoesNotExist:
+            return Response(
+                {'error': 'Whiteboard not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if request.method == 'GET':
+            # Get existing settings or return defaults
+            settings = WhiteboardViewSettings.objects.filter(
+                user=request.user,
+                whiteboard_id=whiteboard_id
+            ).first()
+            
+            if settings:
+                serializer = self.get_serializer(settings)
+                return Response(serializer.data)
+            else:
+                # Return default settings
+                return Response({
+                    'zoom': 1.0,
+                    'pan_x': 0.0,
+                    'pan_y': 0.0
+                })
+        
+        elif request.method == 'POST':
+            # Update or create settings
+            settings, created = WhiteboardViewSettings.objects.update_or_create(
+                user=request.user,
+                whiteboard_id=whiteboard_id,
+                defaults={
+                    'zoom': request.data.get('zoom', 1.0),
+                    'pan_x': request.data.get('pan_x', 0.0),
+                    'pan_y': request.data.get('pan_y', 0.0)
+                }
+            )
+            serializer = self.get_serializer(settings)
+            return Response(serializer.data)

@@ -8,6 +8,7 @@ class Whiteboard(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_whiteboards')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    background_color = models.CharField(max_length=7, default='#ffffff')  # Hex color
     
     def __str__(self):
         return self.name
@@ -94,4 +95,37 @@ class Drawing(models.Model):
     
     def __str__(self):
         return f"Drawing on {self.whiteboard.name}"
+
+
+class CustomColor(models.Model):
+    """Represents a custom color defined by a user"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='custom_colors')
+    name = models.CharField(max_length=50)  # Internal identifier (e.g., 'custom1', 'custom2')
+    nickname = models.CharField(max_length=100, blank=True)  # User-friendly name (e.g., 'Housework', 'Repairs')
+    hex_color = models.CharField(max_length=7)  # Hex color value (e.g., '#FF5733')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'name']
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"{self.nickname or self.name} ({self.hex_color}) - {self.user.username}"
+
+
+class WhiteboardViewSettings(models.Model):
+    """Stores user-specific view settings for a whiteboard"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='whiteboard_view_settings')
+    whiteboard = models.ForeignKey(Whiteboard, on_delete=models.CASCADE, related_name='view_settings')
+    zoom = models.FloatField(default=1.0)
+    pan_x = models.FloatField(default=0.0)
+    pan_y = models.FloatField(default=0.0)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'whiteboard']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.whiteboard.name} (zoom: {self.zoom})"
 

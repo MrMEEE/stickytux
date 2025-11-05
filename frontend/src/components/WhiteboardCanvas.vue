@@ -5,30 +5,102 @@
        @mouseup="handleCanvasMouseUp"
        @wheel="handleWheel"
        @contextmenu.prevent="handleRightClick"
-       @click="closeContextMenu">
+       @click="closeContextMenu"
+       :style="{ backgroundColor: whiteboardBackgroundColor }">
     <div class="toolbar" @mousedown.stop @mousemove.stop @mouseup.stop @click.stop @contextmenu.stop @wheel.stop>
-      <HamburgerMenu />
-      <button @click="addStickyNote" class="btn">Add Sticky Note</button>
-      <button @click="toggleDrawMode" class="btn" :class="{ active: isDrawMode }">
-        {{ isDrawMode ? 'Stop Drawing' : 'Draw (Freehand)' }}
-      </button>
+      <div class="toolbar-left">
+        <HamburgerMenu 
+          :currentWhiteboardId="whiteboardId" 
+          :initialBackgroundColor="whiteboardBackgroundColor"
+          @update-background-color="handleBackgroundColorUpdate"
+        />
+        <button @click="addStickyNote" class="btn">Add Sticky Note</button>
+        <button @click="toggleDrawMode" class="btn" :class="{ active: isDrawMode }">
+          {{ isDrawMode ? 'Stop Drawing' : 'Draw' }}
+        </button>
+        <div v-if="isDrawMode" class="shape-toolbar">
+        <button 
+          @click="selectedShape = 'freehand'" 
+          class="shape-btn" 
+          :class="{ active: selectedShape === 'freehand' }"
+          title="Freehand"
+        >
+          ✏️
+        </button>
+        <button 
+          @click="selectedShape = 'rectangle'" 
+          class="shape-btn" 
+          :class="{ active: selectedShape === 'rectangle' }"
+          title="Rectangle"
+        >
+          ▭
+        </button>
+        <button 
+          @click="selectedShape = 'circle'" 
+          class="shape-btn" 
+          :class="{ active: selectedShape === 'circle' }"
+          title="Circle"
+        >
+          ○
+        </button>
+        <button 
+          @click="selectedShape = 'triangle'" 
+          class="shape-btn" 
+          :class="{ active: selectedShape === 'triangle' }"
+          title="Triangle"
+        >
+          △
+        </button>
+        <button 
+          @click="selectedShape = 'arrow'" 
+          class="shape-btn" 
+          :class="{ active: selectedShape === 'arrow' }"
+          title="Arrow"
+        >
+          →
+        </button>
+        <button 
+          @click="selectedShape = 'line'" 
+          class="shape-btn" 
+          :class="{ active: selectedShape === 'line' }"
+          title="Line"
+        >
+          ─
+        </button>
+      </div>
       <select v-model="selectedColor" class="color-select">
-        <option value="yellow">Yellow</option>
-        <option value="pink">Pink</option>
-        <option value="blue">Blue</option>
-        <option value="green">Green</option>
-        <option value="orange">Orange</option>
-        <option value="purple">Purple</option>
+        <option 
+          v-for="color in standardColors" 
+          :key="color.name" 
+          :value="color.name"
+        >
+          {{ color.nickname || color.displayName }}
+        </option>
+        <optgroup v-if="customColors.length > 0" label="Custom Colors">
+          <option 
+            v-for="color in customColors" 
+            :key="color.id" 
+            :value="color.name"
+          >
+            {{ color.nickname || color.name }}
+          </option>
+        </optgroup>
       </select>
-      <button @click="deleteSelected" class="btn btn-danger" v-if="selectedNotes.length > 0">
-        Delete Selected ({{ selectedNotes.length }})
+      <button @click="confirmDeleteSelectedGroup" class="btn btn-danger" v-if="selectedItems.length > 0">
+        Delete Selected ({{ selectedItems.length }})
       </button>
-      <button @click="deleteSelectedDrawing" class="btn btn-danger" v-if="selectedDrawing">
+      <button @click="confirmDeleteDrawing" class="btn btn-danger" v-if="selectedDrawing">
         Delete Drawing
       </button>
       <span v-if="!isDrawMode && drawings.length > 0" class="hint-text">
         💡 Click on drawings to select them
       </span>
+      </div>
+      
+      <div class="toolbar-brand">
+        <img src="/sticky-note.png" alt="Sticky Note" class="brand-icon-img" />
+        <span class="brand-text">StickyTux</span>
+      </div>
     </div>
 
     <!-- SVG for drawings (outside canvas-area so it covers the full viewport) -->
@@ -46,7 +118,7 @@
           :stroke-width="drawing.stroke_width"
           :class="{ 'selected-drawing': selectedDrawing === drawing.id }"
           fill="none"
-          @click="selectDrawing(drawing.id)"
+          @click="selectDrawing(drawing.id, $event)"
           style="cursor: pointer;"
         />
         <path
@@ -61,7 +133,7 @@
 
     <div class="canvas-area"
          ref="canvas"
-         :style="canvasStyle">
+         :style="{ ...canvasStyle, backgroundColor: whiteboardBackgroundColor }">
 
       <!-- Sticky Notes -->
       <div
@@ -82,20 +154,71 @@
           >
             🎨
           </button>
-          <label 
-            @click.stop
-            class="image-btn"
-            title="Add image"
+          <button 
+            @click.stop="toggleInsertMenu(note.id)" 
+            class="insert-btn"
+            title="Insert"
           >
-            🖼️
+            ➕
+          </button>
+          <button @click.stop="confirmDeleteNote(note.id)" class="delete-btn">×</button>
+        </div>
+        
+        <!-- Insert Menu -->
+        <div 
+          v-if="showInsertMenu === note.id" 
+          class="insert-menu"
+          @click.stop
+        >
+          <label class="insert-option" @click="handleInsertImage(note)">
+            🖼️ Image
             <input 
               type="file" 
               accept="image/*"
               @change="handleImageUpload($event, note)"
               style="display: none;"
+              ref="insertImageInput"
             />
           </label>
-          <button @click.stop="confirmDeleteNote(note.id)" class="delete-btn">×</button>
+          <button class="insert-option" @click="insertCheckbox(note)">
+            ☑️ Checkbox
+          </button>
+          <button class="insert-option" @click="toggleEmojiPicker(note.id)">
+            😊 Emoji
+          </button>
+          <button class="insert-option" @click="insertHorizontalLine(note)">
+            ➖ Horizontal Line
+          </button>
+        </div>
+
+        <!-- Emoji Picker -->
+        <div 
+          v-if="showEmojiPicker === note.id" 
+          class="emoji-picker"
+          @click.stop
+        >
+          <div class="emoji-categories">
+            <button 
+              v-for="cat in emojiCategories" 
+              :key="cat.name"
+              @click="selectedEmojiCategory = cat.name"
+              class="category-btn"
+              :class="{ active: selectedEmojiCategory === cat.name }"
+              :title="cat.name"
+            >
+              {{ cat.icon }}
+            </button>
+          </div>
+          <div class="emoji-grid-scrollable">
+            <button
+              v-for="emoji in currentCategoryEmojis"
+              :key="emoji"
+              class="emoji-btn"
+              @click="insertEmoji(note, emoji)"
+            >
+              {{ emoji }}
+            </button>
+          </div>
         </div>
         
         <!-- Color Picker Menu -->
@@ -104,7 +227,7 @@
           class="color-picker"
           @click.stop
         >
-          <div class="color-options">
+          <div class="color-grid">
             <button
               v-for="color in availableColors"
               :key="color"
@@ -112,6 +235,16 @@
               :style="{ backgroundColor: getNoteColor(color) }"
               @click="changeNoteColor(note.id, color)"
               :class="{ active: note.color === color }"
+              :title="color"
+            ></button>
+            <button
+              v-for="color in customColors"
+              :key="color.id"
+              class="color-option"
+              :style="{ backgroundColor: color.hex_color }"
+              @click="changeNoteColor(note.id, color.name)"
+              :class="{ active: note.color === color.name }"
+              :title="color.nickname || color.name"
             ></button>
           </div>
         </div>
@@ -133,7 +266,7 @@
                 @click.stop
               />
               <button 
-                @click="deleteCurrentImage(note)" 
+                @click.stop="deleteCurrentImage(note)" 
                 class="delete-image-btn"
                 title="Delete this image"
               >
@@ -152,15 +285,36 @@
               {{ (currentImageIndex[note.id] || 0) + 1 }} / {{ note.images.length }}
             </div>
           </div>
+          <div 
+            v-if="editingNote !== note.id" 
+            class="note-text-display"
+            @dblclick.stop="startEditingNote(note.id)"
+            @click.stop="handleNoteTextClick($event, note)"
+            @mousedown.stop
+          >
+            <template v-for="(line, index) in note.content.split('\n')" :key="index">
+              <span v-if="line.trim().startsWith('☐') || line.trim().startsWith('☑')">
+                <input 
+                  type="checkbox" 
+                  :checked="line.trim().startsWith('☑')"
+                  @click.stop="toggleCheckbox(note, index)"
+                  class="note-checkbox"
+                />
+                <span>{{ line.replace(/^[☐☑]\s*/, '') }}</span>
+              </span>
+              <span v-else>{{ line }}</span>
+              <br v-if="index < note.content.split('\n').length - 1" />
+            </template>
+          </div>
           <textarea
+            v-if="editingNote === note.id"
             v-model="note.content"
-            :readonly="editingNote !== note.id"
             @blur="stopEditingNote(note)"
             @click.stop
             @mousedown.stop
             placeholder="Double-click to edit..."
             ref="noteTextarea"
-            :class="{ editable: editingNote === note.id }"
+            class="editable"
           ></textarea>
           <input
             v-if="note.link"
@@ -199,16 +353,36 @@
           :class="{ editable: editingText === textElement.id }"
           :style="{ fontSize: textElement.fontSize + 'px', color: textElement.color }"
         ></textarea>
+        <button 
+          @click.stop="toggleTextColorPicker(textElement.id)" 
+          class="text-color-btn"
+          title="Change text color"
+        >
+          🎨
+        </button>
+        <div 
+          v-if="textColorPickerVisible === textElement.id" 
+          class="text-color-picker"
+          @click.stop
+        >
+          <input 
+            type="color" 
+            v-model="textElement.color" 
+            @change="saveTextElementsToLocalStorage()"
+            class="text-color-input"
+          />
+          <span class="text-color-value">{{ textElement.color }}</span>
+        </div>
         <button @click.stop="confirmDeleteText(textElement.id)" class="text-delete-btn">×</button>
         <div class="text-resize-handle" @mousedown.stop="handleTextResizeMouseDown($event, textElement)"></div>
       </div>
     </div>
 
     <!-- Delete Confirmation Dialog (outside canvas-area so it's not affected by transform) -->
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click="cancelDelete">
+    <div v-if="deleteModal.visible" class="modal-overlay" @click="cancelDelete">
       <div class="modal" @click.stop>
-        <h3>Delete Note</h3>
-        <p>Are you sure you want to delete this sticky note?</p>
+        <h3>{{ deleteModal.title }}</h3>
+        <p>{{ deleteModal.message }}</p>
         <div class="modal-actions">
           <button @click="confirmDelete" class="btn btn-danger">Delete</button>
           <button @click="cancelDelete" class="btn">Cancel</button>
@@ -235,7 +409,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
 import HamburgerMenu from './HamburgerMenu.vue'
@@ -251,7 +425,9 @@ export default {
 
     // Large whiteboard dimensions - much bigger than viewport for infinite feel
     const WHITEBOARD_WIDTH = ref(20000)  // Very large working area
-    const WHITEBOARD_HEIGHT = ref(15000)    // Canvas state
+    const WHITEBOARD_HEIGHT = ref(15000)
+    
+    // Canvas state
     const canvas = ref(null)
     const zoom = ref(1)
     const panX = ref(0)
@@ -259,10 +435,15 @@ export default {
     const isPanning = ref(false)
     const panStartX = ref(0)
     const panStartY = ref(0)
+    
+    // Whiteboard settings
+    const whiteboardBackgroundColor = ref('#ffffff')
 
     // Sticky notes
-    const stickyNotes = ref([])
-    const selectedNotes = ref([])
+  const stickyNotes = ref([])
+  const selectedNotes = ref([])
+  // Mixed-type selection (stores objects like { type: 'note'|'text'|'drawing', id })
+  const selectedItems = ref([])
     const selectedColor = ref('yellow')
     const draggedNote = ref(null)
     const dragOffset = ref({ x: 0, y: 0 })
@@ -272,19 +453,82 @@ export default {
     // Color picker
     const showColorPicker = ref(null)
     const availableColors = ['yellow', 'pink', 'blue', 'green', 'orange', 'purple']
+    const standardColors = ref([
+      { name: 'yellow', displayName: 'Yellow', nickname: '' },
+      { name: 'pink', displayName: 'Pink', nickname: '' },
+      { name: 'blue', displayName: 'Blue', nickname: '' },
+      { name: 'green', displayName: 'Green', nickname: '' },
+      { name: 'orange', displayName: 'Orange', nickname: '' },
+      { name: 'purple', displayName: 'Purple', nickname: '' }
+    ])
+    const customColors = ref([])
+    
+    // Insert menu
+    const showInsertMenu = ref(null)
+    const showEmojiPicker = ref(null)
+    const selectedEmojiCategory = ref('Smileys')
+    
+    const emojiCategories = [
+      { 
+        name: 'Smileys', 
+        icon: '😀',
+        emojis: ['�', '�😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '😎', '🤓', '🧐', '😕', '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️']
+      },
+      { 
+        name: 'Hearts', 
+        icon: '❤️',
+        emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '❣️', '💕', '�', '💓', '💗', '�💖', '💘', '💝', '💟']
+      },
+      { 
+        name: 'Gestures', 
+        icon: '�',
+        emojis: ['👋', '🤚', '�️', '✋', '�', '�', '🤌', '🤏', '✌️', '🤞', '�', '🤘', '🤙', '👈', '👉', '👆', '�', '👇', '☝️', '�👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶']
+      },
+      { 
+        name: 'Symbols', 
+        icon: '✅',
+        emojis: ['✅', '❌', '⭐', '�', '✨', '⚡', '🔥', '💥', '💫', '💢', '💦', '💨', '🕳️', '💬', '👁️‍🗨️', '🗨️', '�️', '💭', '💤', '�💡', '�', '🔕', '🎵', '�', '�🎯', '🎲', '🎰', '🎳', '🎮', '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻']
+      },
+      { 
+        name: 'Objects', 
+        icon: '📌',
+        emojis: ['�', '�📍', '🚩', '�', '🏳️', '🏴', '🏳️‍🌈', '🏳️‍⚧️', '🏴‍☠️', '📁', '📂', '🗂️', '🗃️', '📋', '📊', '📈', '📉', '📇', '📅', '📆', '🗓️', '📎', '🖇️', '📐', '📏', '🧮', '📌', '📍', '✂️', '🖊️', '🖋️', '✒️', '🖌️', '🖍️', '📝', '💼', '📁', '📂', '🗂️', '📅', '📆', '🗒️', '🗓️']
+      },
+      { 
+        name: 'Achievements', 
+        icon: '�🏆',
+        emojis: ['🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🎗️', '🥋', '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '🎯', '🎳', '🎮', '🎰']
+      }
+    ]
+
+    const currentCategoryEmojis = computed(() => {
+      const category = emojiCategories.find(c => c.name === selectedEmojiCategory.value)
+      return category ? category.emojis : emojiCategories[0].emojis
+    })
     
     // Image carousel
     const currentImageIndex = ref({})
     
-    // Delete confirmation
-    const showDeleteConfirm = ref(null)
+    // Delete confirmation modal
+    const deleteModal = ref({
+      visible: false,
+      title: '',
+      message: '',
+      onConfirm: null,
+      data: null
+    })
+
+    // Text color picker
+    const textColorPickerVisible = ref(null)
 
     // Drawing
     const isDrawMode = ref(false)
+    const selectedShape = ref('freehand')
     const drawings = ref([])
     const currentPath = ref([])
     const isDrawing = ref(false)
     const selectedDrawing = ref(null)
+    const shapeStartPoint = ref(null)
 
     // Text elements
     const textElements = ref([])
@@ -379,7 +623,22 @@ export default {
         orange: '#fed7aa',
         purple: '#ddd6fe',
       }
+      
+      // Check if it's a custom color
+      const customColor = customColors.value.find(c => c.name === color)
+      if (customColor) {
+        return customColor.hex_color
+      }
+      
       return colors[color] || colors.yellow
+    }
+
+    // Keep per-type selection arrays in sync with mixed `selectedItems`
+    function syncSelectedArraysFromItems() {
+      selectedNotes.value = selectedItems.value.filter(i => i.type === 'note').map(i => i.id)
+      selectedTexts.value = selectedItems.value.filter(i => i.type === 'text').map(i => i.id)
+      const drawingItem = selectedItems.value.find(i => i.type === 'drawing')
+      selectedDrawing.value = drawingItem ? drawingItem.id : null
     }
 
     // Allow free positioning anywhere on the infinite whiteboard
@@ -396,6 +655,9 @@ export default {
         const response = await api.getWhiteboard(whiteboardId.value)
         stickyNotes.value = response.data.sticky_notes || []
         
+        // Load whiteboard background color
+        whiteboardBackgroundColor.value = response.data.background_color || '#ffffff'
+        
         // Ensure all image URLs are absolute
         stickyNotes.value.forEach(note => {
           if (note.images) {
@@ -411,6 +673,37 @@ export default {
       } catch (error) {
         console.error('Error loading whiteboard:', error)
       }
+    }
+
+    // View settings persistence
+    let saveViewSettingsTimeout = null
+    
+    async function loadViewSettings() {
+      try {
+        const response = await api.getViewSettings(whiteboardId.value)
+        if (response.data) {
+          zoom.value = response.data.zoom || 1.0
+          panX.value = response.data.pan_x || 0.0
+          panY.value = response.data.pan_y || 0.0
+        }
+      } catch (error) {
+        console.error('Error loading view settings:', error)
+      }
+    }
+    
+    function saveViewSettings() {
+      // Debounce the save to avoid too many API calls
+      if (saveViewSettingsTimeout) {
+        clearTimeout(saveViewSettingsTimeout)
+      }
+      
+      saveViewSettingsTimeout = setTimeout(async () => {
+        try {
+          await api.saveViewSettings(whiteboardId.value, zoom.value, panX.value, panY.value)
+        } catch (error) {
+          console.error('Error saving view settings:', error)
+        }
+      }, 1000) // Save after 1 second of inactivity
     }
 
     async function addStickyNote() {
@@ -561,18 +854,74 @@ export default {
       selectedNotes.value = []
     }
 
+    async function deleteSelectedGroup() {
+      // Snapshot to avoid mutation during iteration
+      const items = [...selectedItems.value]
+
+      for (const item of items) {
+        try {
+          if (item.type === 'note') {
+            await deleteNote(item.id)
+          } else if (item.type === 'text') {
+            deleteText(item.id)
+          } else if (item.type === 'drawing') {
+            await api.deleteDrawing(item.id)
+            drawings.value = drawings.value.filter(d => d.id !== item.id)
+            if (selectedDrawing.value === item.id) selectedDrawing.value = null
+          }
+        } catch (error) {
+          console.error('Error deleting selected item', item, error)
+        }
+      }
+
+      // Clear selections
+      selectedItems.value = []
+      selectedNotes.value = []
+      selectedTexts.value = []
+      selectedDrawing.value = null
+    }
+
+    function showDeleteModal(title, message, onConfirm, data = null) {
+      deleteModal.value = {
+        visible: true,
+        title,
+        message,
+        onConfirm,
+        data
+      }
+    }
+
     function confirmDeleteNote(noteId) {
-      showDeleteConfirm.value = noteId
+      showDeleteModal(
+        'Delete Note',
+        'Are you sure you want to delete this sticky note?',
+        async () => {
+          await deleteNote(noteId)
+        }
+      )
+    }
+
+    function confirmDeleteSelectedGroup() {
+      const count = selectedItems.value.length
+      showDeleteModal(
+        'Delete Selected Items',
+        `Are you sure you want to delete ${count} selected item${count > 1 ? 's' : ''}?`,
+        async () => {
+          await deleteSelectedGroup()
+        }
+      )
     }
 
     function cancelDelete() {
-      showDeleteConfirm.value = null
+      deleteModal.value.visible = false
+      deleteModal.value.onConfirm = null
+      deleteModal.value.data = null
     }
 
     async function confirmDelete() {
-      if (showDeleteConfirm.value) {
-        await deleteNote(showDeleteConfirm.value)
-        showDeleteConfirm.value = null
+      if (deleteModal.value.onConfirm) {
+        await deleteModal.value.onConfirm()
+        cancelDelete()
       }
     }
 
@@ -587,6 +936,98 @@ export default {
         await updateNote(note)
         showColorPicker.value = null
       }
+    }
+
+    async function loadCustomColors() {
+      try {
+        const response = await api.getCustomColors()
+        customColors.value = response.data
+      } catch (error) {
+        console.error('Error loading custom colors:', error)
+      }
+    }
+
+    function loadStandardColorNicknames() {
+      const saved = localStorage.getItem('standardColorNicknames')
+      if (saved) {
+        try {
+          const nicknames = JSON.parse(saved)
+          standardColors.value.forEach(color => {
+            if (nicknames[color.name]) {
+              color.nickname = nicknames[color.name]
+            }
+          })
+        } catch (error) {
+          console.error('Error loading standard color nicknames:', error)
+        }
+      }
+    }
+
+    // Insert menu functions
+    function toggleInsertMenu(noteId) {
+      showInsertMenu.value = showInsertMenu.value === noteId ? null : noteId
+      showEmojiPicker.value = null // Close emoji picker when opening insert menu
+    }
+
+    function toggleEmojiPicker(noteId) {
+      showEmojiPicker.value = showEmojiPicker.value === noteId ? null : noteId
+    }
+
+    function handleInsertImage(note) {
+      // Trigger file input click
+      showInsertMenu.value = null
+      // The actual file input is in the template and will handle the upload
+    }
+
+    function insertCheckbox(note) {
+      const checkbox = '\n☐ '
+      if (note.content) {
+        note.content += checkbox
+      } else {
+        note.content = checkbox
+      }
+      updateNote(note)
+      showInsertMenu.value = null
+    }
+
+    function insertEmoji(note, emoji) {
+      if (note.content) {
+        note.content += emoji
+      } else {
+        note.content = emoji
+      }
+      updateNote(note)
+      showEmojiPicker.value = null
+      showInsertMenu.value = null
+    }
+
+    function insertHorizontalLine(note) {
+      const line = '\n────────────────\n'
+      if (note.content) {
+        note.content += line
+      } else {
+        note.content = line
+      }
+      updateNote(note)
+      showInsertMenu.value = null
+    }
+
+    function toggleCheckbox(note, lineIndex) {
+      const lines = note.content.split('\n')
+      if (lines[lineIndex]) {
+        if (lines[lineIndex].trim().startsWith('☐')) {
+          lines[lineIndex] = lines[lineIndex].replace('☐', '☑')
+        } else if (lines[lineIndex].trim().startsWith('☑')) {
+          lines[lineIndex] = lines[lineIndex].replace('☑', '☐')
+        }
+        note.content = lines.join('\n')
+        updateNote(note)
+      }
+    }
+
+    function handleNoteTextClick(event, note) {
+      // This prevents starting a drag when clicking on text
+      event.stopPropagation()
     }
 
     async function handleImageUpload(event, note) {
@@ -644,30 +1085,50 @@ export default {
     }
 
     async function deleteCurrentImage(note) {
-      if (!note.images || note.images.length === 0) return
+      console.log('deleteCurrentImage called with:', { 
+        noteId: note.id, 
+        hasImages: !!note.images, 
+        imageCount: note.images?.length,
+        currentIndex: currentImageIndex.value[note.id]
+      })
+      
+      if (!note.images || note.images.length === 0) {
+        console.log('No images to delete')
+        return
+      }
       
       const currentIndex = currentImageIndex.value[note.id] || 0
       const imageToDelete = note.images[currentIndex]
       
-      if (confirm('Delete this image?')) {
-        try {
-          await api.deleteNoteImage(imageToDelete.id)
-          
-          // Remove the image from the array
-          note.images.splice(currentIndex, 1)
-          
-          // Adjust the current index
-          if (note.images.length === 0) {
-            delete currentImageIndex.value[note.id]
-          } else if (currentIndex >= note.images.length) {
-            currentImageIndex.value[note.id] = note.images.length - 1
+      console.log('Image to delete:', imageToDelete)
+      
+      showDeleteModal(
+        'Delete Image',
+        'Are you sure you want to delete this image?',
+        async () => {
+          try {
+            console.log('Calling API to delete image ID:', imageToDelete.id)
+            await api.deleteNoteImage(imageToDelete.id)
+            
+            // Remove the image from the array
+            note.images.splice(currentIndex, 1)
+            console.log('Image removed from array, remaining images:', note.images.length)
+            
+            // Adjust the current index
+            if (note.images.length === 0) {
+              delete currentImageIndex.value[note.id]
+            } else if (currentIndex >= note.images.length) {
+              currentImageIndex.value[note.id] = note.images.length - 1
+            }
+            
+            broadcastUpdate({ type: 'note_updated', note })
+            console.log('Image delete complete')
+          } catch (error) {
+            console.error('Error deleting image:', error)
+            console.error('Error details:', error.response?.data)
           }
-          
-          broadcastUpdate({ type: 'note_updated', note })
-        } catch (error) {
-          console.error('Error deleting image:', error)
         }
-      }
+      )
     }
 
     // Text element functions
@@ -697,25 +1158,38 @@ export default {
     function getTextStyle(textElement) {
       const isDragging = draggedText.value && draggedText.value.id === textElement.id
       
+      // Convert hex color to rgba with opacity
+      const hexToRgba = (hex, opacity) => {
+        const r = parseInt(hex.slice(1, 3), 16)
+        const g = parseInt(hex.slice(3, 5), 16)
+        const b = parseInt(hex.slice(5, 7), 16)
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`
+      }
+      
+      const bgColor = hexToRgba(whiteboardBackgroundColor.value, 0.9)
+      
       return {
         left: textElement.x + 'px',
         top: textElement.y + 'px',
         width: textElement.width + 'px',
         height: textElement.height + 'px',
+        backgroundColor: bgColor,
         zIndex: 1000,
       }
     }
 
     function selectText(textId, event) {
       if (event.ctrlKey || event.metaKey) {
-        if (selectedTexts.value.includes(textId)) {
-          selectedTexts.value = selectedTexts.value.filter(id => id !== textId)
+        const exists = selectedItems.value.find(i => i.type === 'text' && i.id === textId)
+        if (exists) {
+          selectedItems.value = selectedItems.value.filter(i => !(i.type === 'text' && i.id === textId))
         } else {
-          selectedTexts.value.push(textId)
+          selectedItems.value.push({ type: 'text', id: textId })
         }
       } else {
-        selectedTexts.value = [textId]
+        selectedItems.value = [{ type: 'text', id: textId }]
       }
+      syncSelectedArraysFromItems()
     }
 
     function handleTextMouseDown(event, textElement) {
@@ -784,10 +1258,22 @@ export default {
       }
     }
 
-    function confirmDeleteText(textId) {
-      if (confirm('Are you sure you want to delete this text?')) {
-        deleteText(textId)
+    function toggleTextColorPicker(textId) {
+      if (textColorPickerVisible.value === textId) {
+        textColorPickerVisible.value = null
+      } else {
+        textColorPickerVisible.value = textId
       }
+    }
+
+    function confirmDeleteText(textId) {
+      showDeleteModal(
+        'Delete Text',
+        'Are you sure you want to delete this text element?',
+        async () => {
+          deleteText(textId)
+        }
+      )
     }
 
     function deleteText(textId) {
@@ -796,16 +1282,22 @@ export default {
       saveTextElementsToLocalStorage()
     }
 
+    function handleBackgroundColorUpdate(color) {
+      whiteboardBackgroundColor.value = color
+    }
+
     function selectNote(noteId, event) {
       if (event.ctrlKey || event.metaKey) {
-        if (selectedNotes.value.includes(noteId)) {
-          selectedNotes.value = selectedNotes.value.filter((id) => id !== noteId)
+        const exists = selectedItems.value.find(i => i.type === 'note' && i.id === noteId)
+        if (exists) {
+          selectedItems.value = selectedItems.value.filter(i => !(i.type === 'note' && i.id === noteId))
         } else {
-          selectedNotes.value.push(noteId)
+          selectedItems.value.push({ type: 'note', id: noteId })
         }
       } else {
-        selectedNotes.value = [noteId]
+        selectedItems.value = [{ type: 'note', id: noteId }]
       }
+      syncSelectedArraysFromItems()
     }
 
     function handleNoteMouseDown(event, note) {
@@ -825,12 +1317,8 @@ export default {
         y: mouseY - note.y,
       }
 
-      // If note is selected and multiple notes are selected, prepare group drag
-      if (selectedNotes.value.includes(note.id) && selectedNotes.value.length > 1) {
-        // Group drag will be handled
-      } else {
-        selectNote(note.id, event)
-      }
+      // Note: Don't call selectNote here - it's handled by @click event
+      // This prevents double-selection when Ctrl+clicking
 
       // Add global mouse event listeners to handle dragging outside the element
       document.addEventListener('mousemove', handleGlobalMouseMove)
@@ -863,6 +1351,11 @@ export default {
     }
 
     function handleCanvasMouseDown(event) {
+      // Don't handle if clicking on toolbar or buttons (should be stopped by @mousedown.stop but double-check)
+      if (event.target.closest('.toolbar') || event.target.tagName === 'BUTTON') {
+        return
+      }
+      
       // Check if clicking on a drawing path (not just the SVG background)
       const isClickingPath = event.target.tagName === 'path'
       
@@ -877,6 +1370,7 @@ export default {
         if (!isDrawMode.value) {
           selectedNotes.value = []
           selectedTexts.value = []
+          selectedItems.value = []
           selectedDrawing.value = null
           editingNote.value = null
           editingText.value = null
@@ -892,17 +1386,28 @@ export default {
         const canvasRect = canvas.value.getBoundingClientRect()
         const newX = (event.clientX - canvasRect.left) / zoom.value - dragOffset.value.x
         const newY = (event.clientY - canvasRect.top) / zoom.value - dragOffset.value.y
+        // Determine group selection (notes + texts)
+        const selectedNoteIds = selectedItems.value.filter(i => i.type === 'note').map(i => i.id)
+        const selectedTextIds = selectedItems.value.filter(i => i.type === 'text').map(i => i.id)
 
-        if (selectedNotes.value.length > 1 && selectedNotes.value.includes(draggedNote.value.id)) {
-          // Group drag without constraints
+        if (selectedNoteIds.length > 1 && selectedNoteIds.includes(draggedNote.value.id)) {
+          // Group drag: move selected notes and texts together
           const deltaX = newX - draggedNote.value.x
           const deltaY = newY - draggedNote.value.y
 
-          for (const noteId of selectedNotes.value) {
+          for (const noteId of selectedNoteIds) {
             const note = stickyNotes.value.find((n) => n.id === noteId)
             if (note) {
               note.x = note.x + deltaX
               note.y = note.y + deltaY
+            }
+          }
+
+          for (const textId of selectedTextIds) {
+            const text = textElements.value.find(t => t.id === textId)
+            if (text) {
+              text.x = text.x + deltaX
+              text.y = text.y + deltaY
             }
           }
         } else {
@@ -916,8 +1421,36 @@ export default {
         const newY = (event.clientY - canvasRect.top) / zoom.value + dragOffset.value.y
         
         const constrainedPos = constrainToWhiteboard(newX, newY, 100, 30)
-        draggedText.value.x = constrainedPos.x
-        draggedText.value.y = constrainedPos.y
+
+        // Determine if group drag for texts (and move notes alongside)
+        const selectedTextIds = selectedItems.value.filter(i => i.type === 'text').map(i => i.id)
+        const selectedNoteIds = selectedItems.value.filter(i => i.type === 'note').map(i => i.id)
+
+        if (selectedTextIds.length > 1 && selectedTextIds.includes(draggedText.value.id)) {
+          const deltaX = constrainedPos.x - draggedText.value.x
+          const deltaY = constrainedPos.y - draggedText.value.y
+
+          // Move all selected texts
+          for (const textId of selectedTextIds) {
+            const text = textElements.value.find(t => t.id === textId)
+            if (text) {
+              text.x = text.x + deltaX
+              text.y = text.y + deltaY
+            }
+          }
+
+          // Also move selected notes so mixed selections move together
+          for (const noteId of selectedNoteIds) {
+            const note = stickyNotes.value.find((n) => n.id === noteId)
+            if (note) {
+              note.x = note.x + deltaX
+              note.y = note.y + deltaY
+            }
+          }
+        } else {
+          draggedText.value.x = constrainedPos.x
+          draggedText.value.y = constrainedPos.y
+        }
       } else if (resizingText.value) {
         const canvasRect = canvas.value.getBoundingClientRect()
         const x = (event.clientX - canvasRect.left) / zoom.value
@@ -946,13 +1479,24 @@ export default {
 
     async function handleCanvasMouseUp() {
       if (draggedNote.value) {
+        const draggedNoteId = draggedNote.value.id // Save ID before potential null
         await updateNote(draggedNote.value)
-        if (selectedNotes.value.length > 1) {
-          // Update all selected notes
-          for (const noteId of selectedNotes.value) {
+        // If we moved a group, update all selected notes and texts
+        if (selectedItems.value.length > 1) {
+          const noteIds = selectedItems.value.filter(i => i.type === 'note').map(i => i.id)
+          const textIds = selectedItems.value.filter(i => i.type === 'text').map(i => i.id)
+
+          for (const noteId of noteIds) {
             const note = stickyNotes.value.find((n) => n.id === noteId)
-            if (note && note.id !== draggedNote.value.id) {
+            if (note && note.id !== draggedNoteId) {
               await updateNote(note)
+            }
+          }
+
+          for (const textId of textIds) {
+            const text = textElements.value.find(t => t.id === textId)
+            if (text) {
+              await updateText(text)
             }
           }
         }
@@ -960,7 +1504,27 @@ export default {
       }
 
       if (draggedText.value) {
+        const draggedTextId = draggedText.value.id // Save ID before potential null
         await updateText(draggedText.value)
+        // If group drag, update all selected texts and notes
+        if (selectedItems.value.length > 1) {
+          const textIds = selectedItems.value.filter(i => i.type === 'text').map(i => i.id)
+          const noteIds = selectedItems.value.filter(i => i.type === 'note').map(i => i.id)
+
+          for (const textId of textIds) {
+            const text = textElements.value.find(t => t.id === textId)
+            if (text && text.id !== draggedTextId) {
+              await updateText(text)
+            }
+          }
+
+          for (const noteId of noteIds) {
+            const note = stickyNotes.value.find((n) => n.id === noteId)
+            if (note) {
+              await updateNote(note)
+            }
+          }
+        }
         draggedText.value = null
       }
 
@@ -1061,9 +1625,35 @@ export default {
       isDrawMode.value = !isDrawMode.value
     }
 
-    function selectDrawing(drawingId) {
+    function selectDrawing(drawingId, event) {
       if (!isDrawMode.value) {
-        selectedDrawing.value = selectedDrawing.value === drawingId ? null : drawingId
+        const already = selectedItems.value.find(i => i.type === 'drawing' && i.id === drawingId)
+        if (event?.ctrlKey || event?.metaKey) {
+          if (already) {
+            selectedItems.value = selectedItems.value.filter(i => !(i.type === 'drawing' && i.id === drawingId))
+          } else {
+            selectedItems.value.push({ type: 'drawing', id: drawingId })
+          }
+        } else {
+          if (already && selectedItems.value.length === 1) {
+            selectedItems.value = []
+          } else {
+            selectedItems.value = [{ type: 'drawing', id: drawingId }]
+          }
+        }
+        syncSelectedArraysFromItems()
+      }
+    }
+
+    function confirmDeleteDrawing() {
+      if (selectedDrawing.value) {
+        showDeleteModal(
+          'Delete Drawing',
+          'Are you sure you want to delete the selected drawing?',
+          async () => {
+            await deleteSelectedDrawing()
+          }
+        )
       }
     }
 
@@ -1125,6 +1715,76 @@ export default {
       }
     }
 
+    // Generate path data for different shapes
+    function generateShapePath(start, end, shapeType) {
+      if (!start || !end) return []
+      
+      const width = end.x - start.x
+      const height = end.y - start.y
+      
+      switch (shapeType) {
+        case 'rectangle':
+          return [
+            { x: start.x, y: start.y },
+            { x: end.x, y: start.y },
+            { x: end.x, y: end.y },
+            { x: start.x, y: end.y },
+            { x: start.x, y: start.y }
+          ]
+        
+        case 'circle':
+          // Generate circle using multiple points
+          const centerX = start.x + width / 2
+          const centerY = start.y + height / 2
+          const radiusX = Math.abs(width / 2)
+          const radiusY = Math.abs(height / 2)
+          const points = []
+          const segments = 40
+          for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * Math.PI * 2
+            points.push({
+              x: centerX + radiusX * Math.cos(angle),
+              y: centerY + radiusY * Math.sin(angle)
+            })
+          }
+          return points
+        
+        case 'triangle':
+          return [
+            { x: start.x + width / 2, y: start.y }, // Top
+            { x: end.x, y: end.y },                  // Bottom right
+            { x: start.x, y: end.y },                // Bottom left
+            { x: start.x + width / 2, y: start.y }  // Close
+          ]
+        
+        case 'arrow':
+          // Arrow: line with arrowhead
+          const arrowHeadLength = 20
+          const angle = Math.atan2(height, width)
+          const arrowAngle = Math.PI / 6 // 30 degrees
+          
+          return [
+            { x: start.x, y: start.y },
+            { x: end.x, y: end.y },
+            // Arrowhead
+            { x: end.x - arrowHeadLength * Math.cos(angle - arrowAngle), 
+              y: end.y - arrowHeadLength * Math.sin(angle - arrowAngle) },
+            { x: end.x, y: end.y },
+            { x: end.x - arrowHeadLength * Math.cos(angle + arrowAngle), 
+              y: end.y - arrowHeadLength * Math.sin(angle + arrowAngle) }
+          ]
+        
+        case 'line':
+          return [
+            { x: start.x, y: start.y },
+            { x: end.x, y: end.y }
+          ]
+        
+        default:
+          return []
+      }
+    }
+
     function handleSvgMouseDown(event) {
       console.log('SVG MouseDown:', {
         isDrawMode: isDrawMode.value,
@@ -1146,7 +1806,13 @@ export default {
         
         console.log('Starting draw at canvas coords:', { x, y })
         
-        currentPath.value = [{ x, y }]
+        if (selectedShape.value === 'freehand') {
+          currentPath.value = [{ x, y }]
+        } else {
+          // For shapes, store the start point
+          shapeStartPoint.value = { x, y }
+          currentPath.value = []
+        }
         event.stopPropagation()
       }
       // For other cases (not draw mode, or non-left-click), let event bubble to container
@@ -1158,11 +1824,15 @@ export default {
         const x = (event.clientX - panX.value) / zoom.value
         const y = (event.clientY - 60 - panY.value) / zoom.value  // Subtract toolbar height
         
-        if (currentPath.value.length % 10 === 0) {  // Log every 10th point to avoid spam
-          console.log('Drawing at:', { x, y, pathLength: currentPath.value.length })
+        if (selectedShape.value === 'freehand') {
+          if (currentPath.value.length % 10 === 0) {  // Log every 10th point to avoid spam
+            console.log('Drawing at:', { x, y, pathLength: currentPath.value.length })
+          }
+          currentPath.value.push({ x, y })
+        } else {
+          // For shapes, update preview by recreating path from start to current point
+          currentPath.value = generateShapePath(shapeStartPoint.value, { x, y }, selectedShape.value)
         }
-        
-        currentPath.value.push({ x, y })
         event.stopPropagation()
       }
       // For other cases, let event bubble to container for pan/drag handling
@@ -1184,6 +1854,7 @@ export default {
           console.error('Error saving drawing:', error)
         }
         currentPath.value = []
+        shapeStartPoint.value = null
         isDrawing.value = false
         event.stopPropagation()
       }
@@ -1217,9 +1888,64 @@ export default {
       }
     }
 
+    function handleKeyDown(event) {
+      // Don't trigger delete if user is typing in a textarea or input
+      if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') {
+        return
+      }
+
+      // Handle Delete or Backspace key
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault() // Prevent browser back navigation on Backspace
+
+        if (selectedItems.value.length > 0) {
+          const count = selectedItems.value.length
+          showDeleteModal(
+            'Delete Selected Items',
+            `Are you sure you want to delete ${count} selected item${count > 1 ? 's' : ''}?`,
+            async () => {
+              await deleteSelectedGroup()
+            }
+          )
+        }
+        // Backward-compatible: fallback to single-type selections (unlikely after sync)
+        else if (selectedNotes.value.length > 0) {
+          const count = selectedNotes.value.length
+          showDeleteModal(
+            'Delete Notes',
+            `Are you sure you want to delete ${count} selected note${count > 1 ? 's' : ''}?`,
+            async () => {
+              await deleteSelected()
+            }
+          )
+        } else if (selectedTexts.value.length > 0) {
+          const count = selectedTexts.value.length
+          showDeleteModal(
+            'Delete Text Elements',
+            `Are you sure you want to delete ${count} selected text element${count > 1 ? 's' : ''}?`,
+            async () => {
+              selectedTexts.value.forEach(textId => deleteText(textId))
+              selectedTexts.value = []
+            }
+          )
+        } else if (selectedDrawing.value) {
+          showDeleteModal(
+            'Delete Drawing',
+            'Are you sure you want to delete the selected drawing?',
+            async () => {
+              await deleteSelectedDrawing()
+            }
+          )
+        }
+      }
+    }
+
     onMounted(() => {
       loadWhiteboard()
+      loadViewSettings()
       loadTextElementsFromLocalStorage()
+      loadCustomColors()
+      loadStandardColorNicknames()
       setupWebSocket()
       
       // Update dimensions after component is mounted
@@ -1227,6 +1953,9 @@ export default {
       
       // Listen for window resize
       window.addEventListener('resize', updateWhiteboardDimensions)
+      
+      // Listen for keyboard events
+      document.addEventListener('keydown', handleKeyDown)
       
       document.addEventListener('click', () => {
         contextMenu.value.visible = false
@@ -1252,8 +1981,19 @@ export default {
       })
     })
 
+    // Watch for zoom and pan changes to save view settings
+    watch([zoom, panX, panY], () => {
+      saveViewSettings()
+    })
+
     onUnmounted(() => {
+      // Clear any pending save timeout
+      if (saveViewSettingsTimeout) {
+        clearTimeout(saveViewSettingsTimeout)
+      }
+      
       window.removeEventListener('resize', updateWhiteboardDimensions)
+      document.removeEventListener('keydown', handleKeyDown)
       if (ws) {
         ws.close()
       }
@@ -1266,10 +2006,15 @@ export default {
       panX,
       panY,
       zoom,
+      whiteboardId,
+      whiteboardBackgroundColor,
+      handleBackgroundColorUpdate,
       stickyNotes,
       selectedNotes,
+  selectedItems,
       selectedColor,
       isDrawMode,
+      selectedShape,
       drawings,
       currentPath,
       currentPathData,
@@ -1281,7 +2026,8 @@ export default {
       addLinkNote,
       updateNote,
       deleteNote,
-      deleteSelected,
+  deleteSelected,
+  deleteSelectedGroup,
       selectNote,
       handleNoteMouseDown,
       handleResizeMouseDown,
@@ -1297,33 +2043,53 @@ export default {
       toggleDrawMode,
       selectDrawing,
       selectedDrawing,
+  confirmDeleteSelectedGroup,
+      confirmDeleteDrawing,
       deleteSelectedDrawing,
       // Color picker
       showColorPicker,
       availableColors,
+      standardColors,
+      customColors,
       toggleColorPicker,
       changeNoteColor,
       handleImageUpload,
+      // Insert menu
+      showInsertMenu,
+      showEmojiPicker,
+      selectedEmojiCategory,
+      emojiCategories,
+      currentCategoryEmojis,
+      toggleInsertMenu,
+      toggleEmojiPicker,
+      handleInsertImage,
+      insertCheckbox,
+      insertEmoji,
+      insertHorizontalLine,
+      toggleCheckbox,
+      handleNoteTextClick,
       // Image carousel
       currentImageIndex,
       getCurrentImage,
       nextImage,
       prevImage,
       deleteCurrentImage,
-      // Delete confirmation
-      showDeleteConfirm,
+      // Delete confirmation modal
+      deleteModal,
       confirmDeleteNote,
       cancelDelete,
       confirmDelete,
       // Text elements
       textElements,
       selectedTexts,
+      textColorPickerVisible,
       addTextAt,
       getTextStyle,
       selectText,
       handleTextMouseDown,
       handleTextResizeMouseDown,
       updateText,
+      toggleTextColorPicker,
       confirmDeleteText,
       deleteText,
       // Editing
@@ -1356,10 +2122,10 @@ export default {
 
 .toolbar {
   background: #333;
-  padding: 10px;
+  padding: 10px 20px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
   width: 100%;
   z-index: 1002;
   position: relative;
@@ -1367,10 +2133,60 @@ export default {
   pointer-events: auto;
 }
 
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.toolbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.3s ease;
+}
+
+.toolbar-brand:hover {
+  transform: translateY(-2px);
+}
+
+.brand-icon-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  animation: rotate-tilt 3s ease-in-out infinite;
+}
+
+.brand-icon {
+  font-size: 32px;
+  animation: rotate-tilt 3s ease-in-out infinite;
+}
+
+@keyframes rotate-tilt {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  75% {
+    transform: rotate(10deg);
+  }
+}
+
+.brand-text {
+  font-size: 36px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 1px;
+  font-family: 'Comic Sans MS', 'Marker Felt', cursive, sans-serif;
+}
+
 .canvas-area {
   flex: 1;
   position: relative;
-  background: white;
   overflow: visible;
   cursor: default;
   min-height: 0;
@@ -1416,6 +2232,38 @@ export default {
   font-size: 13px;
   font-style: italic;
   margin-left: 10px;
+}
+
+.shape-toolbar {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.shape-btn {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s;
+  min-width: 40px;
+}
+
+.shape-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.shape-btn.active {
+  background: #ff9800;
+  border-color: #ff9800;
+  box-shadow: 0 0 8px rgba(255, 152, 0, 0.5);
 }
 
 .drawing-layer {
@@ -1589,6 +2437,8 @@ export default {
   justify-content: center;
   transition: all 0.2s ease;
   opacity: 0;
+  z-index: 10;
+  pointer-events: auto;
 }
 
 .image-container:hover .delete-image-btn {
@@ -1616,12 +2466,12 @@ export default {
   flex: 1;
   border: none;
   resize: none;
-  font-family: 'Comic Sans MS', 'Marker Felt', cursive, sans-serif;
-  font-size: 14px;
+  font-family: var(--note-font-family, 'Comic Sans MS', 'Marker Felt', cursive, sans-serif);
+  font-size: var(--note-font-size, 14px);
+  color: var(--note-font-color, #333);
   line-height: 1.4;
   outline: none;
   background: transparent;
-  color: #333;
   padding: 4px;
   cursor: default;
   user-select: none;
@@ -1632,6 +2482,26 @@ export default {
   cursor: text;
   user-select: text;
   pointer-events: auto;
+}
+
+.note-text-display {
+  flex: 1;
+  font-family: var(--note-font-family, 'Comic Sans MS', 'Marker Felt', cursive, sans-serif);
+  font-size: var(--note-font-size, 14px);
+  color: var(--note-font-color, #333);
+  line-height: 1.4;
+  padding: 4px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  cursor: default;
+}
+
+.note-checkbox {
+  margin-right: 6px;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
 }
 
 .link-input {
@@ -1741,14 +2611,15 @@ export default {
   padding: 8px;
 }
 
-.color-options {
-  display: flex;
-  gap: 4px;
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
 }
 
 .color-option {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border: 2px solid transparent;
   border-radius: 4px;
   cursor: pointer;
@@ -1763,6 +2634,126 @@ export default {
 .color-option.active {
   border-color: #007bff;
   box-shadow: 0 0 0 1px #007bff;
+}
+
+/* Insert menu */
+.insert-btn {
+  background: none;
+  border: none;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.insert-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: scale(1.1);
+}
+
+.insert-menu {
+  position: absolute;
+  top: 32px;
+  left: 40px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  padding: 4px;
+  min-width: 150px;
+}
+
+.insert-option {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+  font-size: 14px;
+  color: #333;
+}
+
+.insert-option:hover {
+  background: rgba(0, 123, 255, 0.1);
+}
+
+.emoji-picker {
+  position: absolute;
+  top: 32px;
+  left: 40px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 1001;
+  padding: 8px;
+  width: 320px;
+}
+
+.emoji-categories {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.category-btn {
+  background: none;
+  border: 1px solid #ddd;
+  padding: 6px 10px;
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  flex: 1;
+  min-width: 0;
+}
+
+.category-btn:hover {
+  background: rgba(0, 123, 255, 0.1);
+  border-color: #007bff;
+}
+
+.category-btn.active {
+  background: #007bff;
+  border-color: #007bff;
+  color: white;
+}
+
+.emoji-grid-scrollable {
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.emoji-btn {
+  background: none;
+  border: 1px solid transparent;
+  padding: 6px;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.emoji-btn:hover {
+  background: rgba(0, 123, 255, 0.1);
+  border-color: #007bff;
+  transform: scale(1.2);
 }
 
 /* Modal styles */
@@ -1836,7 +2827,6 @@ export default {
   min-height: 30px;
   cursor: move;
   user-select: none;
-  background: rgba(255, 255, 255, 0.9);
   border-radius: 4px;
   padding: 4px;
   border: 1px solid transparent;
@@ -1847,7 +2837,7 @@ export default {
 
 .text-element:hover {
   border-color: #ddd;
-  background: rgba(255, 255, 255, 0.95);
+  filter: brightness(1.05);
 }
 
 .text-element.selected {
@@ -1863,7 +2853,9 @@ export default {
   width: 100%;
   height: 100%;
   min-height: 20px;
-  font-family: Arial, sans-serif;
+  font-family: var(--note-font-family, Arial, sans-serif);
+  font-size: var(--text-font-size, 16px);
+  color: var(--note-font-color, #333);
   line-height: 1.2;
   padding: 0;
   cursor: default;
@@ -1875,6 +2867,62 @@ export default {
   cursor: text;
   user-select: text;
   pointer-events: auto;
+}
+
+.text-color-btn {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #007bff;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.text-element:hover .text-color-btn {
+  display: flex;
+}
+
+.text-color-btn:hover {
+  background: #0056b3;
+  transform: scale(1.1);
+}
+
+.text-color-picker {
+  position: absolute;
+  top: -50px;
+  left: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  z-index: 1000;
+}
+
+.text-color-input {
+  width: 40px;
+  height: 30px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.text-color-value {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #333;
 }
 
 .text-delete-btn {
