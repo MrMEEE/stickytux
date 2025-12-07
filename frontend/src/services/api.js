@@ -3,8 +3,10 @@ import axios from 'axios'
 // Automatically detect API base URL based on environment
 let API_BASE_URL
 if (process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost') {
-  // In production or when not running locally, use relative URL to backend
-  API_BASE_URL = `${window.location.protocol}//${window.location.hostname.replace('stickytux-frontend-', 'stickytux-backend-')}/api`
+  // In production, construct backend URL from current hostname
+  const protocol = window.location.protocol
+  const hostname = window.location.hostname.replace('frontend', 'backend')
+  API_BASE_URL = `${protocol}//${hostname}`
 } else {
   // Development mode - use local backend
   API_BASE_URL = 'http://localhost:8000/api'
