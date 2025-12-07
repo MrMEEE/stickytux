@@ -19,13 +19,17 @@ spec:
     spec:
       containers:
         - name: backend
-          image: stickytux-backend:latest
+          image: image-registry.openshift-image-registry.svc:5000/stickytux/stickytux-backend:latest
           ports:
             - containerPort: 8080
               protocol: TCP
           env:
             - name: DJANGO_SETTINGS_MODULE
               value: backend.settings
+            - name: DEBUG
+              value: "False"
+            - name: ALLOWED_HOSTS
+              value: "*"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -41,6 +45,8 @@ spec:
                 secretKeyRef:
                   name: stickytux-secrets
                   key: redis-url
+            - name: MEDIA_ROOT
+              value: "/app/media"
           volumeMounts:
             - name: database-storage
               mountPath: /app/data
@@ -94,7 +100,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: stickytux-frontend:latest
+          image: image-registry.openshift-image-registry.svc:5000/stickytux/stickytux-frontend:latest
           ports:
             - containerPort: 8080
               protocol: TCP
