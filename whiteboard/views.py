@@ -1,13 +1,24 @@
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q, Max
 from django.contrib.auth.models import User
+from django.http import JsonResponse
 from .models import Whiteboard, WhiteboardAccess, StickyNote, StickyNoteImage, Drawing, CustomColor, WhiteboardViewSettings
 from .serializers import (
     WhiteboardSerializer, WhiteboardAccessSerializer,
     StickyNoteSerializer, StickyNoteImageSerializer, DrawingSerializer, CustomColorSerializer, WhiteboardViewSettingsSerializer
 )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def health_check(request):
+    """Health check endpoint for OpenShift/Kubernetes"""
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'StickyTux backend is running'
+    })
 
 
 class IsWhiteboardOwnerOrHasAccess(permissions.BasePermission):

@@ -15,6 +15,7 @@ router.register(r'view-settings', views.WhiteboardViewSettingsViewSet, basename=
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('health/', views.health_check, name='health'),
     path('auth/login/', auth_views.login_view, name='login'),
     path('auth/logout/', auth_views.logout_view, name='logout'),
     path('auth/csrf/', auth_views.csrf_token_view, name='csrf'),
