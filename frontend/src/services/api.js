@@ -13,6 +13,8 @@ if (process.env.NODE_ENV === 'production' || window.location.hostname !== 'local
   API_BASE_URL = 'http://localhost:8000/api'
 }
 
+console.log('API_BASE_URL configured as:', API_BASE_URL)
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -41,9 +43,13 @@ function getCsrfToken() {
 // Add CSRF token to all requests
 api.interceptors.request.use(
   (config) => {
+    console.log('Making API request to:', config.baseURL + config.url)
     const csrfToken = getCsrfToken()
     if (csrfToken) {
       config.headers['X-CSRFToken'] = csrfToken
+      console.log('Using CSRF token:', csrfToken)
+    } else {
+      console.log('No CSRF token available')
     }
     // If sending FormData, remove Content-Type to let browser set it with boundary
     if (config.data instanceof FormData) {
@@ -52,6 +58,19 @@ api.interceptors.request.use(
     return config
   },
   (error) => {
+    console.error('Request interceptor error:', error)
+    return Promise.reject(error)
+  }
+)
+
+// Add response logging
+api.interceptors.response.use(
+  (response) => {
+    console.log('API response:', response.status, response.data)
+    return response
+  },
+  (error) => {
+    console.error('API error:', error.response?.status, error.response?.data, 'URL:', error.config?.url)
     return Promise.reject(error)
   }
 )
