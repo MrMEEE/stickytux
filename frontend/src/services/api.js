@@ -44,12 +44,17 @@ function getCsrfToken() {
 api.interceptors.request.use(
   (config) => {
     console.log('Making API request to:', config.baseURL + config.url)
+    console.log('Current cookies:', document.cookie)
     const csrfToken = getCsrfToken()
     if (csrfToken) {
       config.headers['X-CSRFToken'] = csrfToken
       console.log('Using CSRF token:', csrfToken)
     } else {
-      console.log('No CSRF token available')
+      console.log('No CSRF token available - this might cause 403 errors for POST/PUT/DELETE requests')
+      // For non-GET requests without CSRF token, let's try to get one first
+      if (config.method && config.method.toLowerCase() !== 'get' && config.method.toLowerCase() !== 'options') {
+        console.warn('POST/PUT/DELETE request without CSRF token! URL:', config.url)
+      }
     }
     // If sending FormData, remove Content-Type to let browser set it with boundary
     if (config.data instanceof FormData) {

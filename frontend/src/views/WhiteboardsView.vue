@@ -66,6 +66,9 @@ export default {
       if (!newWhiteboardName.value.trim()) return
 
       try {
+        // Ensure we have a CSRF token before making the POST request
+        await api.getCsrfToken()
+        
         const response = await api.createWhiteboard({
           name: newWhiteboardName.value,
         })
