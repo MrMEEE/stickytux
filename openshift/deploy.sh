@@ -2,6 +2,14 @@
 
 # StickyTux OpenShift Deployment Script
 # This script automates the deployment of StickyTux to OpenShift
+# 
+# Features:
+# - Auto-detects OpenShift cluster domain
+# - Dynamically generates CORS and CSRF configurations
+# - Configures storage classes
+# - Builds and deploys both frontend and backend
+# 
+# Usage: ./deploy.sh [PROJECT_NAME] [GITHUB_REPO]
 
 set -e
 
@@ -60,7 +68,56 @@ echo "🏗️  Creating ImageStreams..."
 oc apply -f "$SCRIPT_DIR/imagestreams.yaml"
 
 echo "🔐 Creating ConfigMap and Secrets..."
-oc apply -f "$SCRIPT_DIR/configmap.yaml"
+
+# Auto-detect OpenShift cluster domain
+CLUSTER_DOMAIN=$(oc get routes -n openshift-console console -o jsonpath='{.spec.host}' | sed 's/^console-openshift-console\.//')
+if [ -z "$CLUSTER_DOMAIN" ]; then
+    echo "⚠️  Could not auto-detect cluster domain, using default apps.okd.outerrim.lan"
+    CLUSTER_DOMAIN="apps.okd.outerrim.lan"
+fi
+
+echo "🌐 Detected cluster domain: $CLUSTER_DOMAIN"
+
+# Generate dynamic CORS and CSRF URLs
+FRONTEND_URL="https://$PROJECT_NAME-frontend-$PROJECT_NAME.$CLUSTER_DOMAIN"
+BACKEND_URL="https://$PROJECT_NAME-backend-$PROJECT_NAME.$CLUSTER_DOMAIN"
+
+echo "🔧 Configuring URLs:"
+echo "  Frontend: $FRONTEND_URL"
+echo "  Backend: $BACKEND_URL"
+
+# Create dynamic ConfigMap
+cat > "/tmp/configmap-dynamic.yaml" << EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stickytux-config
+  labels:
+    app: stickytux
+data:
+  DJANGO_SETTINGS_MODULE: "backend.settings"
+  WEB_CONCURRENCY: "4"
+  NODE_ENV: "production"
+  
+  # CORS Configuration - dynamically generated
+  CORS_ALLOWED_ORIGINS: "$FRONTEND_URL,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+  CORS_ALLOW_ALL_ORIGINS: "true"
+  CORS_ALLOW_CREDENTIALS: "true"
+  
+  # CSRF Configuration - dynamically generated
+  CSRF_TRUSTED_ORIGINS: "$FRONTEND_URL,$BACKEND_URL,https://*.$CLUSTER_DOMAIN,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+  
+  # Django Configuration
+  ALLOWED_HOSTS: "*"
+  DEBUG: "false"
+  
+  # Frontend URL for dynamic CORS
+  FRONTEND_URL: "$FRONTEND_URL"
+EOF
+
+oc apply -f "/tmp/configmap-dynamic.yaml"
+rm "/tmp/configmap-dynamic.yaml"
+
 oc apply -f "$SCRIPT_DIR/secrets.yaml"
 
 echo "💾 Creating Persistent Volume Claims..."
