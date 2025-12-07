@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>StickyTux Debug</title>
+</head>
+<body>
+    <h1>StickyTux API Debug</h1>
+    <div id="debug-info"></div>
+    <button onclick="testAPI()">Test API Connection</button>
+    <div id="test-results"></div>
+
+    <script>
+        // Same logic as api.js
+        let API_BASE_URL
+        if ('production' === 'production' || window.location.hostname !== 'localhost') {
+            const protocol = window.location.protocol
+            const hostname = window.location.hostname.replace('frontend', 'backend')
+            API_BASE_URL = `${protocol}//${hostname}/api`
+        } else {
+            API_BASE_URL = 'http://localhost:8000/api'
+        }
+
+        document.getElementById('debug-info').innerHTML = `
+            <p><strong>Current URL:</strong> ${window.location.href}</p>
+            <p><strong>Hostname:</strong> ${window.location.hostname}</p>
+            <p><strong>Protocol:</strong> ${window.location.protocol}</p>
+            <p><strong>Generated API URL:</strong> ${API_BASE_URL}</p>
+            <p><strong>NODE_ENV:</strong> production</p>
+        `;
+
+        async function testAPI() {
+            const results = document.getElementById('test-results');
+            results.innerHTML = '<p>Testing API connection...</p>';
+            
+            try {
+                // Test basic health endpoint
+                const response = await fetch(`${API_BASE_URL}/health/`, {
+                    method: 'GET',
+                    credentials: 'include',
+                });
+                
+                if (response.ok) {
+                    const data = await response.text();
+                    results.innerHTML += `<p style="color: green;">✅ Health check successful: ${data}</p>`;
+                    
+                    // Test CSRF endpoint
+                    try {
+                        const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf/`, {
+                            method: 'GET',
+                            credentials: 'include',
+                        });
+                        
+                        if (csrfResponse.ok) {
+                            const csrfData = await csrfResponse.text();
+                            results.innerHTML += `<p style="color: green;">✅ CSRF check successful: ${csrfData}</p>`;
+                        } else {
+                            results.innerHTML += `<p style="color: red;">❌ CSRF failed: ${csrfResponse.status} ${csrfResponse.statusText}</p>`;
+                        }
+                    } catch (csrfError) {
+                        results.innerHTML += `<p style="color: red;">❌ CSRF error: ${csrfError.message}</p>`;
+                    }
+                } else {
+                    results.innerHTML += `<p style="color: red;">❌ Health check failed: ${response.status} ${response.statusText}</p>`;
+                }
+            } catch (error) {
+                results.innerHTML += `<p style="color: red;">❌ Network error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
