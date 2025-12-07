@@ -1,0 +1,20 @@
+#!/bin/bash
+
+echo "---> Installing application source"
+cp -Rf /tmp/src/. ./
+
+echo "---> Installing Python dependencies"
+pip install --upgrade pip
+pip install -r requirements.txt
+
+echo "---> Setting up database directory"
+mkdir -p /app/data
+
+echo "---> Migrating database"
+export DATABASE_URL="sqlite:////app/data/db.sqlite3"
+python manage.py migrate --noinput
+
+echo "---> Collecting static files"
+python manage.py collectstatic --noinput
+
+echo "---> Build completed successfully"

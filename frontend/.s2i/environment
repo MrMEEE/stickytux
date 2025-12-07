@@ -1,0 +1,2 @@
+# Frontend Build Environment Variables
+NODE_ENV=production

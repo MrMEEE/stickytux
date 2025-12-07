@@ -1,0 +1,6 @@
+#!/bin/bash
+
+echo "---> Starting static file server for frontend"
+
+# Serve the built files using a simple HTTP server
+exec python3 -m http.server 8080 --directory dist

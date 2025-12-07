@@ -98,7 +98,7 @@
       </div>
       
       <div class="toolbar-brand">
-        <img :src="stickyNoteIcon" alt="Sticky Note" class="brand-icon-img" />
+        <span class="brand-icon">�</span>
         <span class="brand-text">StickyTux</span>
       </div>
     </div>
@@ -413,7 +413,6 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
 import HamburgerMenu from './HamburgerMenu.vue'
-import stickyNoteIcon from '/sticky-note.png'
 
 export default {
   name: 'WhiteboardCanvas',
@@ -498,7 +497,7 @@ export default {
       { 
         name: 'Achievements', 
         icon: '�🏆',
-       emojis: ['🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🎗️', '🥋', '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '🎯', '🎳', '🎮', '🎰']
+        emojis: ['🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🎗️', '🥋', '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '🎯', '🎳', '🎮', '🎰']
       }
     ]
 
@@ -2100,7 +2099,6 @@ export default {
       stopEditingNote,
       startEditingText,
       stopEditingText,
-      stickyNoteIcon,
     }
   },
 }
@@ -2145,19 +2143,12 @@ export default {
 .toolbar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   transition: all 0.3s ease;
 }
 
 .toolbar-brand:hover {
   transform: translateY(-2px);
-}
-
-.brand-icon-img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  animation: rotate-tilt 3s ease-in-out infinite;
 }
 
 .brand-icon {
@@ -2178,7 +2169,7 @@ export default {
 }
 
 .brand-text {
-  font-size: 36px;
+  font-size: 28px;
   font-weight: 700;
   color: white;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);

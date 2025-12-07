@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stickytux-database-pvc
+  labels:
+    app: stickytux
+    component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName will be set by deployment script
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stickytux-media-pvc
+  labels:
+    app: stickytux
+    component: media
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName will be set by deployment script

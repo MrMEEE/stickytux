@@ -1,0 +1,12 @@
+#!/bin/bash
+
+echo "---> Installing frontend source"
+cp -Rf /tmp/src/. ./
+
+echo "---> Installing Node.js dependencies"
+npm ci --production=false
+
+echo "---> Building Vue.js application"
+npm run build
+
+echo "---> Frontend build completed successfully"
