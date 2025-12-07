@@ -7,14 +7,12 @@ echo "---> Installing Python dependencies"
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "---> Setting up database directory"
-mkdir -p /app/data
-
-echo "---> Migrating database"
-export DATABASE_URL="sqlite:////app/data/db.sqlite3"
-python manage.py migrate --noinput
-
 echo "---> Collecting static files"
+# Skip database operations during build - they will run at container startup
+export DJANGO_SETTINGS_MODULE=backend.settings
+export SECRET_KEY="build-time-secret-key"
+export DATABASE_URL="sqlite:////tmp/build_db.sqlite3"
+export STATIC_ROOT="/opt/app-root/src/staticfiles"
 python manage.py collectstatic --noinput
 
 echo "---> Build completed successfully"
