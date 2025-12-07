@@ -47,6 +47,9 @@ spec:
                   key: redis-url
             - name: MEDIA_ROOT
               value: "/app/media"
+          envFrom:
+            - configMapRef:
+                name: stickytux-config
           volumeMounts:
             - name: database-storage
               mountPath: /app/data
