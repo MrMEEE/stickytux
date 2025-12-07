@@ -74,17 +74,42 @@ export default {
     async function testConnection() {
       connectionTest.value = { message: 'Testing...', success: false }
       try {
+        // Try with fetch first
         const response = await fetch(`${debugInfo.value.apiUrl}/health/`, {
           method: 'GET',
           credentials: 'include',
+          mode: 'cors',
         })
         if (response.ok) {
-          connectionTest.value = { message: 'Connection successful!', success: true }
+          connectionTest.value = { message: 'Fetch connection successful!', success: true }
         } else {
-          connectionTest.value = { message: `Connection failed: ${response.status}`, success: false }
+          connectionTest.value = { message: `Fetch failed: ${response.status}`, success: false }
         }
       } catch (error) {
-        connectionTest.value = { message: `Network error: ${error.message}`, success: false }
+        // If fetch fails, try XMLHttpRequest
+        try {
+          connectionTest.value = { message: 'Fetch failed, trying XMLHttpRequest...', success: false }
+          
+          const xhr = new XMLHttpRequest()
+          xhr.open('GET', `${debugInfo.value.apiUrl}/health/`, true)
+          xhr.withCredentials = true
+          
+          xhr.onload = function() {
+            if (xhr.status === 200) {
+              connectionTest.value = { message: 'XMLHttpRequest connection successful!', success: true }
+            } else {
+              connectionTest.value = { message: `XMLHttpRequest failed: ${xhr.status}`, success: false }
+            }
+          }
+          
+          xhr.onerror = function() {
+            connectionTest.value = { message: `XMLHttpRequest error: ${xhr.statusText}`, success: false }
+          }
+          
+          xhr.send()
+        } catch (xhrError) {
+          connectionTest.value = { message: `Both fetch and XHR failed: ${error.message} / ${xhrError.message}`, success: false }
+        }
       }
     }
 

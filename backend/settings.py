@@ -124,6 +124,14 @@ CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_origins_str.split(',')
     'http://127.0.0.1:5174',
 ]
 
+# Session and CSRF cookie settings for cross-origin
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True  # Required for SameSite=None
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True  # Required for SameSite=None
+CSRF_COOKIE_HTTPONLY = False  # Must be False so JavaScript can read it
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
