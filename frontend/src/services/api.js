@@ -4,9 +4,10 @@ import axios from 'axios'
 let API_BASE_URL
 if (process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost') {
   // In production, construct backend URL from current hostname
+  // The route already includes /api path prefix
   const protocol = window.location.protocol
   const hostname = window.location.hostname.replace('frontend', 'backend')
-  API_BASE_URL = `${protocol}//${hostname}`
+  API_BASE_URL = `${protocol}//${hostname}/api`
 } else {
   // Development mode - use local backend
   API_BASE_URL = 'http://localhost:8000/api'
