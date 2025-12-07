@@ -26,6 +26,18 @@
         For demo purposes, create a superuser with: <br />
         <code>python manage.py createsuperuser</code>
       </p>
+
+      <!-- Debug Information -->
+      <div class="debug-info">
+        <h4>Debug Info:</h4>
+        <p><strong>API Base URL:</strong> {{ debugInfo.apiUrl }}</p>
+        <p><strong>Current Host:</strong> {{ debugInfo.hostname }}</p>
+        <p><strong>Protocol:</strong> {{ debugInfo.protocol }}</p>
+        <button @click="testConnection" type="button" class="btn btn-secondary">Test API Connection</button>
+        <div v-if="connectionTest" class="connection-test" :class="connectionTest.success ? 'success' : 'error'">
+          {{ connectionTest.message }}
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -41,6 +53,40 @@ export default {
     const router = useRouter()
     const username = ref('')
     const password = ref('')
+    const connectionTest = ref(null)
+    
+    // Debug information
+    const debugInfo = ref({
+      apiUrl: '',
+      hostname: window.location.hostname,
+      protocol: window.location.protocol
+    })
+
+    // Get API URL (same logic as in api.js)
+    if (process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost') {
+      const protocol = window.location.protocol
+      const hostname = window.location.hostname.replace('frontend', 'backend')
+      debugInfo.value.apiUrl = `${protocol}//${hostname}/api`
+    } else {
+      debugInfo.value.apiUrl = 'http://localhost:8000/api'
+    }
+
+    async function testConnection() {
+      connectionTest.value = { message: 'Testing...', success: false }
+      try {
+        const response = await fetch(`${debugInfo.value.apiUrl}/health/`, {
+          method: 'GET',
+          credentials: 'include',
+        })
+        if (response.ok) {
+          connectionTest.value = { message: 'Connection successful!', success: true }
+        } else {
+          connectionTest.value = { message: `Connection failed: ${response.status}`, success: false }
+        }
+      } catch (error) {
+        connectionTest.value = { message: `Network error: ${error.message}`, success: false }
+      }
+    }
 
     async function handleLogin() {
       try {
@@ -59,6 +105,9 @@ export default {
       username,
       password,
       handleLogin,
+      debugInfo,
+      connectionTest,
+      testConnection,
     }
   },
 }
@@ -136,5 +185,57 @@ code {
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 11px;
+}
+
+.debug-info {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.debug-info h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.debug-info p {
+  margin: 5px 0;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+}
+
+.connection-test {
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.connection-test.success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.connection-test.error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
 }
 </style>
