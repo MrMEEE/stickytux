@@ -33,6 +33,12 @@
         <p><strong>API Base URL:</strong> {{ debugInfo.apiUrl }}</p>
         <p><strong>Current Host:</strong> {{ debugInfo.hostname }}</p>
         <p><strong>Protocol:</strong> {{ debugInfo.protocol }}</p>
+        <p><strong>Backend Health URL:</strong> 
+          <a :href="debugInfo.apiUrl.replace('/api', '') + '/api/health/'" target="_blank" rel="noopener">
+            {{ debugInfo.apiUrl.replace('/api', '') }}/api/health/
+          </a>
+        </p>
+        <p class="cert-help">👆 Click the link above to accept the backend certificate if needed</p>
         <button @click="testConnection" type="button" class="btn btn-secondary">Test API Connection</button>
         <div v-if="connectionTest" class="connection-test" :class="connectionTest.success ? 'success' : 'error'">
           {{ connectionTest.message }}
@@ -73,42 +79,54 @@ export default {
 
     async function testConnection() {
       connectionTest.value = { message: 'Testing...', success: false }
+      
+      // First, let's try to test if we can reach the backend at all
+      console.log('Testing connection to:', debugInfo.value.apiUrl)
+      console.log('Current origin:', window.location.origin)
+      
       try {
-        // Try with fetch first
-        const response = await fetch(`${debugInfo.value.apiUrl}/health/`, {
+        // Test 1: Simple fetch without credentials first
+        connectionTest.value = { message: 'Step 1: Testing basic connectivity...', success: false }
+        
+        const basicResponse = await fetch(`${debugInfo.value.apiUrl}/health/`, {
           method: 'GET',
-          credentials: 'include',
           mode: 'cors',
+          cache: 'no-cache',
         })
-        if (response.ok) {
-          connectionTest.value = { message: 'Fetch connection successful!', success: true }
-        } else {
-          connectionTest.value = { message: `Fetch failed: ${response.status}`, success: false }
-        }
-      } catch (error) {
-        // If fetch fails, try XMLHttpRequest
-        try {
-          connectionTest.value = { message: 'Fetch failed, trying XMLHttpRequest...', success: false }
+        
+        if (basicResponse.ok) {
+          connectionTest.value = { message: 'Step 1: Basic connection OK! Testing with credentials...', success: false }
           
-          const xhr = new XMLHttpRequest()
-          xhr.open('GET', `${debugInfo.value.apiUrl}/health/`, true)
-          xhr.withCredentials = true
-          
-          xhr.onload = function() {
-            if (xhr.status === 200) {
-              connectionTest.value = { message: 'XMLHttpRequest connection successful!', success: true }
-            } else {
-              connectionTest.value = { message: `XMLHttpRequest failed: ${xhr.status}`, success: false }
+          // Test 2: With credentials
+          const credResponse = await fetch(`${debugInfo.value.apiUrl}/health/`, {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'include',
+            cache: 'no-cache',
+            headers: {
+              'Accept': 'application/json',
             }
-          }
+          })
           
-          xhr.onerror = function() {
-            connectionTest.value = { message: `XMLHttpRequest error: ${xhr.statusText}`, success: false }
+          if (credResponse.ok) {
+            connectionTest.value = { message: 'Step 2: Connection with credentials successful!', success: true }
+          } else {
+            connectionTest.value = { message: `Step 2: Failed with credentials: ${credResponse.status}`, success: false }
           }
-          
-          xhr.send()
-        } catch (xhrError) {
-          connectionTest.value = { message: `Both fetch and XHR failed: ${error.message} / ${xhrError.message}`, success: false }
+        } else {
+          connectionTest.value = { message: `Step 1: Basic connection failed: ${basicResponse.status}`, success: false }
+        }
+        
+      } catch (error) {
+        connectionTest.value = { message: `Connection failed: ${error.message}. Check if you've accepted the backend certificate.`, success: false }
+        console.error('Fetch error details:', error)
+        
+        // Show a helpful message about certificate issues
+        if (error.message.includes('NetworkError') || error.message.includes('CORS')) {
+          connectionTest.value = { 
+            message: `CORS/Network error detected. Please visit ${debugInfo.value.apiUrl.replace('/api', '')}/api/health/ directly in a new tab to accept the certificate, then try again.`, 
+            success: false 
+          }
         }
       }
     }
@@ -228,6 +246,21 @@ code {
 
 .debug-info p {
   margin: 5px 0;
+}
+
+.cert-help {
+  font-style: italic;
+  color: #007bff !important;
+  font-size: 11px !important;
+}
+
+.debug-info a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.debug-info a:hover {
+  text-decoration: underline;
 }
 
 .btn-secondary {
