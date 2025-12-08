@@ -50,4 +50,9 @@ def logout_view(request):
 @ensure_csrf_cookie
 def csrf_token_view(request):
     """Get CSRF token"""
-    return Response({'message': 'CSRF cookie set'})
+    from django.middleware.csrf import get_token
+    csrf_token = get_token(request)
+    return Response({
+        'message': 'CSRF cookie set',
+        'csrftoken': csrf_token
+    })

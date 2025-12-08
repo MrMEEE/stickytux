@@ -23,8 +23,17 @@ const api = axios.create({
   },
 })
 
+// Global CSRF token storage
+let storedCsrfToken = null
+
 // Function to get CSRF token from cookies
 function getCsrfToken() {
+  // First try the stored token from API response
+  if (storedCsrfToken) {
+    return storedCsrfToken
+  }
+  
+  // Fallback to cookie-based token
   const name = 'csrftoken'
   let cookieValue = null
   if (document.cookie && document.cookie !== '') {
@@ -211,8 +220,14 @@ export default {
   },
   
   // Auth
-  getCsrfToken() {
-    return api.get('/auth/csrf/')
+  async getCsrfToken() {
+    const response = await api.get('/auth/csrf/')
+    // Store the CSRF token from the response
+    if (response.data && response.data.csrftoken) {
+      storedCsrfToken = response.data.csrftoken
+      console.log('CSRF token stored from API response:', storedCsrfToken)
+    }
+    return response
   },
   
   login(username, password) {

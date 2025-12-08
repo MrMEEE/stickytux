@@ -136,20 +136,22 @@ export default {
         console.log('Starting login process...')
         console.log('Cookies before CSRF request:', document.cookie)
         
-        // Get CSRF token first
-        await api.getCsrfToken()
+        // Get CSRF token first (this will store it from the API response)
+        const csrfResponse = await api.getCsrfToken()
+        console.log('CSRF API response:', csrfResponse.data)
         
-        // Wait a bit for the cookie to be set
+        // Wait a bit for any cookies to be set
         await new Promise(resolve => setTimeout(resolve, 100))
         
         console.log('Cookies after CSRF request:', document.cookie)
         
-        // Check if we actually have the CSRF token now
-        const csrfToken = getCsrfTokenFromCookies()
-        console.log('CSRF token extracted from cookies:', csrfToken)
+        // Check if we have a CSRF token (either from API response or cookies)
+        const csrfTokenFromCookies = getCsrfTokenFromCookies()
+        console.log('CSRF token extracted from cookies:', csrfTokenFromCookies)
+        console.log('CSRF token from API response:', csrfResponse.data.csrftoken)
         
-        if (!csrfToken) {
-          throw new Error('CSRF token not found in cookies after requesting it')
+        if (!csrfTokenFromCookies && !csrfResponse.data.csrftoken) {
+          throw new Error('CSRF token not available from either cookies or API response')
         }
         
         // Then login
