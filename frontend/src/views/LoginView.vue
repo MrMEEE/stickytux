@@ -155,7 +155,15 @@ export default {
         }
         
         // Then login
-        await api.login(username.value, password.value)
+        const loginResponse = await api.login(username.value, password.value)
+        console.log('Login successful:', loginResponse.data)
+        
+        // IMPORTANT: After successful login, Django creates a new session
+        // which invalidates the old CSRF token. Get a fresh one.
+        console.log('Getting fresh CSRF token after login...')
+        await api.getCsrfToken()
+        console.log('Fresh CSRF token obtained')
+        
         router.push('/whiteboards')
       } catch (error) {
         console.error('Login error:', error)
