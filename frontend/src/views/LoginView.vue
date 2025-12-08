@@ -133,8 +133,25 @@ export default {
 
     async function handleLogin() {
       try {
+        console.log('Starting login process...')
+        console.log('Cookies before CSRF request:', document.cookie)
+        
         // Get CSRF token first
         await api.getCsrfToken()
+        
+        // Wait a bit for the cookie to be set
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        console.log('Cookies after CSRF request:', document.cookie)
+        
+        // Check if we actually have the CSRF token now
+        const csrfToken = getCsrfTokenFromCookies()
+        console.log('CSRF token extracted from cookies:', csrfToken)
+        
+        if (!csrfToken) {
+          throw new Error('CSRF token not found in cookies after requesting it')
+        }
+        
         // Then login
         await api.login(username.value, password.value)
         router.push('/whiteboards')
@@ -142,6 +159,23 @@ export default {
         console.error('Login error:', error)
         alert('Login failed. Please check your credentials.')
       }
+    }
+    
+    // Helper function to get CSRF token from cookies (same as in api.js)
+    function getCsrfTokenFromCookies() {
+      const name = 'csrftoken'
+      let cookieValue = null
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';')
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim()
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1))
+            break
+          }
+        }
+      }
+      return cookieValue
     }
 
     return {

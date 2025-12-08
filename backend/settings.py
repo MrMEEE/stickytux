@@ -132,6 +132,11 @@ CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True  # Required for SameSite=None
 CSRF_COOKIE_HTTPONLY = False  # Must be False so JavaScript can read it
 
+# Additional CSRF settings for cross-domain requests
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+CSRF_USE_SESSIONS = False  # Use cookies instead of sessions for CSRF
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
