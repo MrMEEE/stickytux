@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "---> Starting static file server for frontend"
+echo "---> Starting SPA-enabled frontend server"
 
-# Serve the built files using a simple HTTP server
-exec python3 -m http.server 8080 --directory dist
+# Use Node.js Express server with SPA routing support
+exec node server.js

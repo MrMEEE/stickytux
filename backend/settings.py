@@ -128,6 +128,9 @@ CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_origins_str.split(',')
 SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True  # Required for SameSite=None
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_SAVE_EVERY_REQUEST = True  # Refresh session on every request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True  # Required for SameSite=None
 CSRF_COOKIE_HTTPONLY = False  # Must be False so JavaScript can read it
