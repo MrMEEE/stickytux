@@ -32,3 +32,21 @@ spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: stickytux-websocket
+  labels:
+    app: stickytux
+    component: backend
+spec:
+  to:
+    kind: Service
+    name: stickytux-backend
+  port:
+    targetPort: http
+  path: /ws
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

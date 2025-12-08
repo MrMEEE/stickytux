@@ -549,6 +549,23 @@ export default {
     // WebSocket
     let ws = null
 
+    // Helper function to construct media URLs based on environment
+    function getMediaUrl(relativeUrl) {
+      if (!relativeUrl || relativeUrl.startsWith('http')) {
+        return relativeUrl
+      }
+      
+      if (process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost') {
+        // In production, construct backend URL from current hostname
+        const protocol = window.location.protocol
+        const hostname = window.location.hostname.replace('frontend', 'backend')
+        return `${protocol}//${hostname}${relativeUrl}`
+      } else {
+        // Development mode - use local backend
+        return `http://localhost:8000${relativeUrl}`
+      }
+    }
+
     const canvasStyle = computed(() => ({
       transform: `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})`,
       transformOrigin: '0 0',
@@ -664,7 +681,7 @@ export default {
           if (note.images) {
             note.images.forEach(img => {
               if (img.image && !img.image.startsWith('http')) {
-                img.image = `http://localhost:8000${img.image}`
+                img.image = getMediaUrl(img.image)
               }
             })
           }
@@ -1045,7 +1062,7 @@ export default {
           // Ensure the image URL is absolute
           const imageData = response.data
           if (imageData.image && !imageData.image.startsWith('http')) {
-            imageData.image = `http://localhost:8000${imageData.image}`
+            imageData.image = getMediaUrl(imageData.image)
           }
           
           note.images.push(imageData)
@@ -1671,7 +1688,20 @@ export default {
     }
 
     function setupWebSocket() {
-      const wsUrl = `ws://localhost:8000/ws/whiteboard/${whiteboardId.value}/`
+      // Automatically detect WebSocket URL based on environment
+      let wsBaseUrl
+      if (process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost') {
+        // In production, use the WebSocket-specific route
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const hostname = window.location.hostname.replace('frontend', 'websocket')
+        wsBaseUrl = `${protocol}//${hostname}/ws`
+      } else {
+        // Development mode - use local backend
+        wsBaseUrl = 'ws://localhost:8000/ws'
+      }
+      
+      const wsUrl = `${wsBaseUrl}/whiteboard/${whiteboardId.value}/`
+      console.log('Connecting WebSocket to:', wsUrl)
       ws = new WebSocket(wsUrl)
 
       ws.onmessage = (event) => {
