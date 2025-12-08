@@ -9,9 +9,10 @@ mkdir -p /app/data /app/media
 echo "---> Running database migrations"
 python manage.py migrate --noinput
 
-# Start Django with Gunicorn
-exec gunicorn backend.wsgi:application \
+# Start Django with Gunicorn using ASGI for WebSocket support
+exec gunicorn backend.asgi:application \
     --bind 0.0.0.0:8080 \
+    --worker-class uvicorn.workers.UvicornWorker \
     --workers ${WEB_CONCURRENCY:-4} \
     --timeout 60 \
     --keep-alive 2 \

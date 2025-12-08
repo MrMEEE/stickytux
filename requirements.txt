@@ -5,4 +5,5 @@ channels>=4.0
 channels-redis>=4.0
 pillow>=10.0
 gunicorn>=21.0
+uvicorn>=0.24
 dj-database-url>=2.0
