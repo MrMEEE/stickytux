@@ -11,9 +11,14 @@ const port = process.env.PORT || 8080;
 // Serve static files from the dist directory
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Handle SPA routing - send all requests to index.html
-// Use proper Express route pattern instead of '*'
-app.get('/*', (req, res) => {
+// Handle SPA routing - fallback to index.html for any request not handled by static files
+app.use((req, res, next) => {
+  // If this is an API request, skip
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  
+  // For all other requests, serve index.html (SPA fallback)
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
